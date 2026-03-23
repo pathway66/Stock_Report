@@ -1,5 +1,5 @@
 """
-🔮 AI+패스웨이 키움 REST API 자동 수급 수집기 v2.0
+[*] AI+패스웨이 키움 REST API 자동 수급 수집기 v2.0
 ==================================================
 수급 10개 + 시총 1개 = 11개 파일 자동 생성
 인코딩: UTF-8 (Cursor/Claude/Excel 호환)
@@ -62,7 +62,7 @@ class KiwoomAPI:
         if data.get('return_code') == 0:
             self.token = data['token']
             return True
-        print(f"❌ 토큰 실패: {data.get('return_msg')}")
+        print(f"[X] 토큰 실패: {data.get('return_msg')}")
         return False
 
     def call(self, api_id, url_path, body):
@@ -107,7 +107,7 @@ class KiwoomAPI:
 def collect_supply(api, target_date, date_short):
     """수급 데이터 10개 파일 수집"""
     print(f"\n{'─'*50}")
-    print(f"📌 STEP 1: 수급 데이터 수집")
+    print(f"[>] STEP 1: 수급 데이터 수집")
     print(f"{'─'*50}")
 
     results = []
@@ -164,7 +164,7 @@ def collect_supply(api, target_date, date_short):
 def collect_mktcap(api, target_date, date_short):
     """시가총액 파일 1개 수집"""
     print(f"\n{'─'*50}")
-    print(f"📌 STEP 2: 시가총액 수집 ({MKTCAP_MODE} 모드)")
+    print(f"[>] STEP 2: 시가총액 수집 ({MKTCAP_MODE} 모드)")
     print(f"{'─'*50}")
 
     # 대상 종목 결정
@@ -284,7 +284,7 @@ def main():
     date_short = target_date[2:]  # YYMMDD
 
     print("=" * 60)
-    print("🔮 AI+패스웨이 키움 REST API 자동수집기 v2.0")
+    print("[*] AI+패스웨이 키움 REST API 자동수집기 v2.0")
     print(f"   날짜: {target_date}  인코딩: UTF-8")
     print(f"   서버: {BASE_URL}")
     print("=" * 60)
@@ -292,10 +292,10 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     api = KiwoomAPI()
-    print("\n📌 토큰 발급 중...", end=" ")
+    print("\n[>] 토큰 발급 중...", end=" ")
     if not api.get_token():
         return
-    print("✅ 성공")
+    print("[OK] 성공")
 
     start_total = time.time()
 
@@ -308,16 +308,16 @@ def main():
     # 완료 요약
     total_time = time.time() - start_total
     print(f"\n{'='*60}")
-    print(f"✅ 전체 수집 완료!")
+    print(f"[OK] 전체 수집 완료!")
     print(f"   총 소요시간: {total_time:.0f}초 ({total_time/60:.1f}분)")
     print(f"   총 API 호출: {api.call_count}회")
     print(f"   출력 폴더: {os.path.abspath(OUTPUT_DIR)}")
-    print(f"\n📁 생성된 파일 (총 {len(supply_files)+1}개):")
+    print(f"\n[F] 생성된 파일 (총 {len(supply_files)+1}개):")
     for f in supply_files:
         print(f"   ✓ {f}")
     print(f"   ✓ {mkt_file} ({mkt_count}종목)")
-    print(f"\n💡 이 파일들을 Claude에 업로드하면 수급분석 리포트를 생성합니다.")
-    print(f"💡 인코딩: UTF-8 (Cursor/Claude/Excel 모두 호환)")
+    print(f"\n[!] 이 파일들을 Claude에 업로드하면 수급분석 리포트를 생성합니다.")
+    print(f"[!] 인코딩: UTF-8 (Cursor/Claude/Excel 모두 호환)")
     print("=" * 60)
 
 

@@ -1,5 +1,5 @@
 """
-🔮 AI+패스웨이 키움 REST API 자동수집기 v3.0
+[*] AI+패스웨이 키움 REST API 자동수집기 v3.0
 ==================================================
 v2.0 + Supabase DB 자동 저장
 수급 10개 + 시총 1개 = 11개 CSV 파일 생성 + DB 동시 저장
@@ -90,7 +90,7 @@ class SupabaseDB:
             if resp.status_code in [200, 201, 204]:
                 self.insert_count += len(batch)
             else:
-                print(f"    ⚠️ DB 오류 ({table}): {resp.status_code} {resp.text[:200]}")
+                print(f"    [W]️ DB 오류 ({table}): {resp.status_code} {resp.text[:200]}")
 
     def test_connection(self):
         """연결 테스트"""
@@ -120,17 +120,17 @@ class KiwoomAPI:
                 timeout=10
             )
             if resp.status_code != 200 or not resp.text.strip():
-                print(f"❌ 키움 토큰 실패: HTTP {resp.status_code}")
+                print(f"[X] 키움 토큰 실패: HTTP {resp.status_code}")
                 return False
             data = resp.json()
             if data.get('return_code') == 0:
                 self.token = data['token']
                 self.token_time = time.time()
                 return True
-            print(f"❌ 키움 토큰 실패: {data.get('return_msg')}")
+            print(f"[X] 키움 토큰 실패: {data.get('return_msg')}")
             return False
         except Exception as e:
-            print(f"❌ 키움 토큰 에러: {e}")
+            print(f"[X] 키움 토큰 에러: {e}")
             return False
 
     def refresh_token_if_needed(self):
@@ -138,10 +138,10 @@ class KiwoomAPI:
         if self.token_time and (time.time() - self.token_time) > 1200:
             print("  🔄 토큰 갱신 중...", end=" ", flush=True)
             if self.get_token():
-                print("✅")
+                print("[OK]")
                 return True
             else:
-                print("❌ 재시도...")
+                print("[X] 재시도...")
                 time.sleep(5)
                 return self.get_token()
         return True
@@ -158,7 +158,7 @@ class KiwoomAPI:
             self.call_count += 1
             return resp.json(), resp.headers
         except Exception as e:
-            print(f"  ⚠️ API 호출 에러: {e}")
+            print(f"  [W]️ API 호출 에러: {e}")
             return {"return_code": -1}, {}
 
     def call_paged(self, api_id, url_path, body, max_pages=5):
@@ -195,7 +195,7 @@ class KiwoomAPI:
 # ============================================================
 def collect_supply(api, db, target_date, date_short):
     print(f"\n{'─'*50}")
-    print(f"📌 STEP 1: 수급 데이터 수집 + DB 저장")
+    print(f"[>] STEP 1: 수급 데이터 수집 + DB 저장")
     print(f"{'─'*50}")
 
     date_obj = datetime.strptime(target_date, "%Y%m%d").strftime("%Y-%m-%d")
@@ -302,7 +302,7 @@ def collect_supply(api, db, target_date, date_short):
 # ============================================================
 def collect_mktcap(api, db, target_date, date_short, stock_markets):
     print(f"\n{'─'*50}")
-    print(f"📌 STEP 2: 시가총액 수집 + DB 저장")
+    print(f"[>] STEP 2: 시가총액 수집 + DB 저장")
     print(f"{'─'*50}")
 
     date_obj = datetime.strptime(target_date, "%Y%m%d").strftime("%Y-%m-%d")
@@ -431,14 +431,14 @@ def main():
     date_short = target_date[2:]
 
     print("=" * 60)
-    print("🔮 AI+패스웨이 키움 REST API 자동수집기 v3.0")
+    print("[*] AI+패스웨이 키움 REST API 자동수집기 v3.0")
     print(f"   날짜: {target_date}  인코딩: UTF-8")
     print(f"   CSV + Supabase DB 동시 저장")
     print("=" * 60)
 
     # 설정 확인
     if not APP_KEY or not SECRET_KEY:
-        print("❌ .env 파일에 KIWOOM_APP_KEY, KIWOOM_SECRET_KEY를 설정하세요.")
+        print("[X] .env 파일에 KIWOOM_APP_KEY, KIWOOM_SECRET_KEY를 설정하세요.")
         return
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -447,21 +447,21 @@ def main():
     db = None
     if SUPABASE_URL and SUPABASE_KEY:
         db = SupabaseDB(SUPABASE_URL, SUPABASE_KEY)
-        print("\n📌 Supabase 연결 테스트...", end=" ")
+        print("\n[>] Supabase 연결 테스트...", end=" ")
         if db.test_connection():
-            print("✅ 성공")
+            print("[OK] 성공")
         else:
-            print("⚠️ 연결 실패 (CSV만 저장합니다)")
+            print("[W]️ 연결 실패 (CSV만 저장합니다)")
             db = None
     else:
-        print("\n⚠️ Supabase 설정 없음 (CSV만 저장합니다)")
+        print("\n[W]️ Supabase 설정 없음 (CSV만 저장합니다)")
 
     # 키움 토큰
     api = KiwoomAPI()
-    print("📌 키움 토큰 발급...", end=" ")
+    print("[>] 키움 토큰 발급...", end=" ")
     if not api.get_token():
         return
-    print("✅ 성공")
+    print("[OK] 성공")
 
     start_total = time.time()
 
@@ -474,18 +474,18 @@ def main():
     # 완료
     total_time = time.time() - start_total
     print(f"\n{'='*60}")
-    print(f"✅ 전체 수집 완료!")
+    print(f"[OK] 전체 수집 완료!")
     print(f"   총 소요시간: {total_time:.0f}초 ({total_time/60:.1f}분)")
     print(f"   키움 API 호출: {api.call_count}회")
     if db:
         print(f"   DB 저장: {db.insert_count}건")
     print(f"   출력 폴더: {os.path.abspath(OUTPUT_DIR)}")
-    print(f"\n📁 생성된 파일 (총 {len(supply_files)+1}개):")
+    print(f"\n[F] 생성된 파일 (총 {len(supply_files)+1}개):")
     for f in supply_files:
         print(f"   ✓ {f}")
     print(f"   ✓ {mkt_file} ({mkt_count}종목)")
     if db:
-        print(f"\n💾 Supabase DB에도 동시 저장 완료!")
+        print(f"\n[DB] Supabase DB에도 동시 저장 완료!")
     print("=" * 60)
 
 

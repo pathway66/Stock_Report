@@ -1,5 +1,5 @@
 """
-🔮 AI+패스웨이 블로그 DOCX 자동생성
+[*] AI+패스웨이 블로그 DOCX 자동생성
 ================================
 Supabase에서 분석 결과를 읽어 블로그 DOCX를 자동 생성
 
@@ -61,7 +61,7 @@ def generate_blog(target_date, top_names=None, recommend_name=None):
         from docx.enum.table import WD_TABLE_ALIGNMENT
         from docx.oxml.ns import qn
     except ImportError:
-        print("❌ python-docx 필요: pip install python-docx --break-system-packages")
+        print("[X] python-docx 필요: pip install python-docx --break-system-packages")
         return
 
     date_str = datetime.strptime(target_date, "%Y%m%d").strftime("%Y-%m-%d")
@@ -74,7 +74,7 @@ def generate_blog(target_date, top_names=None, recommend_name=None):
     # 데이터 로드
     scores = db_read("analysis_scores", f"date=eq.{date_str}&order=final_score.desc")
     if not scores:
-        print("❌ 분석 데이터가 없습니다.")
+        print("[X] 분석 데이터가 없습니다.")
         return
 
     # 섹터맵 로드
@@ -166,7 +166,7 @@ def generate_blog(target_date, top_names=None, recommend_name=None):
             shading.append(shading_elm)
 
     # 제목
-    add_title("📊 AI 수급분석 리포트", size=20)
+    add_title("[G] AI 수급분석 리포트", size=20)
     add_title(f"{date_display} ({weekday}) | AI+패스웨이", size=12, color=RGBColor(0x66, 0x66, 0x66), bold=False)
     doc.add_paragraph()
 
@@ -291,7 +291,7 @@ def generate_blog(target_date, top_names=None, recommend_name=None):
     filename = f"Claude_블로그_수급분석_{date_short}.docx"
     filepath = os.path.join(".", filename)
     doc.save(filepath)
-    print(f"\n✅ 블로그 생성 완료: {filepath}")
+    print(f"\n[OK] 블로그 생성 완료: {filepath}")
     return filepath
 
 def save_top3_history(target_date, top_stocks):
@@ -337,9 +337,9 @@ def save_top3_history(target_date, top_stocks):
     url = f"{SUPABASE_URL}/rest/v1/top3_history"
     resp = requests.post(url, headers=headers, json=rows)
     if resp.status_code in [200, 201]:
-        print(f"  ✅ top3_history 저장 완료 ({len(rows)}종목, 만료일: {expires_date})")
+        print(f"  [OK] top3_history 저장 완료 ({len(rows)}종목, 만료일: {expires_date})")
     else:
-        print(f"  ⚠️ top3_history 저장 실패: {resp.status_code} {resp.text[:100]}")
+        print(f"  [W]️ top3_history 저장 실패: {resp.status_code} {resp.text[:100]}")
 
 def main():
     target_date = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%Y%m%d")
@@ -347,12 +347,12 @@ def main():
     recommend = sys.argv[3] if len(sys.argv) > 3 else None
 
     print("=" * 50)
-    print("🔮 AI+패스웨이 블로그 자동생성")
+    print("[*] AI+패스웨이 블로그 자동생성")
     print(f"   날짜: {target_date}")
     print("=" * 50)
 
     if not SUPABASE_URL or not SUPABASE_KEY:
-        print("❌ .env 파일에 SUPABASE_URL, SUPABASE_KEY를 설정하세요.")
+        print("[X] .env 파일에 SUPABASE_URL, SUPABASE_KEY를 설정하세요.")
         return
 
     generate_blog(target_date, top_names, recommend)

@@ -51,4 +51,4 @@ for i in range(0, len(rows), batch_size):
         print(f"  배치 {i//batch_size+1}: 오류 {resp.status_code} {resp.text[:200]}")
     time.sleep(0.5)
 
-print(f"\n✅ 업로드 완료: {success}/{len(rows)}건")
+print(f"\n[OK] 업로드 완료: {success}/{len(rows)}건")

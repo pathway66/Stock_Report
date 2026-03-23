@@ -1,5 +1,5 @@
 """
-🔮 AI+패스웨이 과거 데이터 소급 수집
+[*] AI+패스웨이 과거 데이터 소급 수집
 ================================
 6개월치 데이터를 한 번에 수집+분석+DB저장
 
@@ -72,7 +72,7 @@ def main():
     days = get_business_days(start_date, end_date)
 
     print("=" * 60)
-    print("🔮 AI+패스웨이 과거 데이터 소급 수집")
+    print("[*] AI+패스웨이 과거 데이터 소급 수집")
     print(f"   기간: {start_date} ~ {end_date}")
     print(f"   영업일: {len(days)}일")
     print(f"   예상 소요: {len(days) * 3.5 / 60:.1f}시간")
@@ -97,7 +97,7 @@ def main():
             capture_output=False
         )
         if result.returncode != 0:
-            print(f"  ⚠️ 수집 실패: {day}")
+            print(f"  [W]️ 수집 실패: {day}")
             fail += 1
             continue
 
@@ -107,18 +107,18 @@ def main():
             capture_output=False
         )
         if result.returncode != 0:
-            print(f"  ⚠️ 분석 실패: {day}")
+            print(f"  [W]️ 분석 실패: {day}")
         
         success += 1
 
         # 진행률
         pct = (i + 1) / len(days) * 100
-        print(f"\n  ✅ {day} 완료 ({pct:.0f}%, 성공:{success} 실패:{fail})")
+        print(f"\n  [OK] {day} 완료 ({pct:.0f}%, 성공:{success} 실패:{fail})")
 
     total_elapsed = time.time() - total_start
 
     print("\n" + "=" * 60)
-    print(f"🎉 소급 수집 완료!")
+    print(f"[!] 소급 수집 완료!")
     print(f"   총 소요: {total_elapsed/3600:.1f}시간 ({total_elapsed/60:.0f}분)")
     print(f"   성공: {success}일 / 실패: {fail}일")
     print(f"   종료: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")

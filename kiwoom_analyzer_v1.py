@@ -1,5 +1,5 @@
 """
-🔮 AI+패스웨이 분석 엔진 v1.0.1
+[*] AI+패스웨이 분석 엔진 v1.0.1
 ================================
 Supabase DB에서 수급+시총 데이터를 읽어 v3 점수 계산 후 DB에 저장
 v1.0.1: 페이징 수정 + upsert on_conflict 수정
@@ -64,7 +64,7 @@ class SupabaseDB:
                 url = f"{SUPABASE_URL}/rest/v1/{table}?limit={limit}&offset={offset}"
             resp = requests.get(url, headers=self.headers_read)
             if resp.status_code != 200:
-                print(f"  ⚠️ DB 읽기 오류 ({table}): {resp.status_code}")
+                print(f"  [W]️ DB 읽기 오류 ({table}): {resp.status_code}")
                 break
             data = resp.json()
             if not data:
@@ -89,7 +89,7 @@ class SupabaseDB:
             if resp.status_code in [200, 201, 204]:
                 count += len(batch)
             else:
-                print(f"  ⚠️ DB 저장 오류 ({table}): {resp.status_code} {resp.text[:200]}")
+                print(f"  [W]️ DB 저장 오류 ({table}): {resp.status_code} {resp.text[:200]}")
         return count
 
 
@@ -123,7 +123,7 @@ def analyze(target_date):
     date_str = datetime.strptime(target_date, "%Y%m%d").strftime("%Y-%m-%d")
 
     print(f"\n{'─'*50}")
-    print(f"📌 STEP 1: Supabase에서 데이터 읽기 ({date_str})")
+    print(f"[>] STEP 1: Supabase에서 데이터 읽기 ({date_str})")
     print(f"{'─'*50}")
 
     db = SupabaseDB()
@@ -132,7 +132,7 @@ def analyze(target_date):
     print(f"  수급 데이터: {len(supply_data)}건")
 
     if not supply_data:
-        print("  ❌ 수급 데이터가 없습니다. 먼저 kiwoom_collector_v3.py를 실행하세요.")
+        print("  [X] 수급 데이터가 없습니다. 먼저 kiwoom_collector_v3.py를 실행하세요.")
         return
 
     market_data = db.read("daily_market", f"date=eq.{date_str}")
@@ -141,7 +141,7 @@ def analyze(target_date):
     smap = load_sector_map()
 
     print(f"\n{'─'*50}")
-    print(f"📌 STEP 2: v3 점수 계산")
+    print(f"[>] STEP 2: v3 점수 계산")
     print(f"{'─'*50}")
 
     # 시총 딕셔너리
@@ -234,7 +234,7 @@ def analyze(target_date):
 
     # 결과 출력
     print(f"\n{'═'*60}")
-    print(f"📊 수급분석 리포트 ({date_str})")
+    print(f"[G] 수급분석 리포트 ({date_str})")
     print(f"{'═'*60}")
 
     three_plus = [r for r in results if r['n_buyers'] >= 3]
@@ -255,7 +255,7 @@ def analyze(target_date):
         print(f"\n■ 5주체 전원매수 ({len(five_all)}종목)")
         print(f"  ─────────────────────────────────────")
         for r in five_all:
-            chg_color = "🔴" if r['change_pct'] > 0 else "🔵"
+            chg_color = "[R]" if r['change_pct'] > 0 else "🔵"
             print(f"  {chg_color} {r['stock_name']:<14} {r['sector']:<12} {r['final_score']:>6.1f}점 {r['change_pct']:>+6.2f}%")
 
     # ── 당일수급 TOP25 ──
@@ -324,11 +324,11 @@ def analyze(target_date):
     print(f"  ─────────────────────────────────────────────────────")
     for i, r in enumerate(top3_candidates):
         print(f"  {i+1}위: {r['stock_name']:<14} ({r['sector']}) {r['final_score']:>6.1f}점 {r['combo']}")
-    print(f"\n💡 Shawn이 최종 TOP과 순위를 결정해주세요!")
+    print(f"\n[!] Shawn이 최종 TOP과 순위를 결정해주세요!")
 
     # DB 저장
     print(f"\n{'─'*50}")
-    print(f"📌 STEP 4: Supabase DB 저장")
+    print(f"[>] STEP 4: Supabase DB 저장")
     print(f"{'─'*50}")
 
     saved = db.upsert("analysis_scores", results)
@@ -344,13 +344,13 @@ def main():
         target_date = datetime.now().strftime("%Y%m%d")
 
     print("=" * 60)
-    print("🔮 AI+패스웨이 분석 엔진 v1.0.1")
+    print("[*] AI+패스웨이 분석 엔진 v1.0.1")
     print(f"   날짜: {target_date}")
     print(f"   데이터소스: Supabase DB")
     print("=" * 60)
 
     if not SUPABASE_URL or not SUPABASE_KEY:
-        print("❌ .env 파일에 SUPABASE_URL, SUPABASE_KEY를 설정하세요.")
+        print("[X] .env 파일에 SUPABASE_URL, SUPABASE_KEY를 설정하세요.")
         return
 
     start = time.time()
@@ -360,11 +360,11 @@ def main():
     if result:
         results, top3 = result
         print(f"\n{'='*60}")
-        print(f"✅ 분석 완료!")
+        print(f"[OK] 분석 완료!")
         print(f"   총 분석 종목: {len(results)}")
         print(f"   소요시간: {elapsed:.1f}초")
         print(f"   TOP3: {', '.join(r['stock_name'] for r in top3)}")
-        print(f"\n💾 Supabase analysis_scores 테이블에 저장 완료!")
+        print(f"\n[DB] Supabase analysis_scores 테이블에 저장 완료!")
         print("=" * 60)
 
 
