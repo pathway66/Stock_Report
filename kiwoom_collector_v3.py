@@ -64,24 +64,30 @@ class SupabaseDB:
             "apikey": key,
             "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
-            "Prefer": "resolution=merge-duplicates"  # UPSERT
+            "Prefer": "return=minimal,resolution=merge-duplicates"
         }
         self.insert_count = 0
 
-    def upsert(self, table, rows):
-        """DB에 데이터 삽입/업데이트 (배치)"""
+    def upsert(self, table, rows, on_conflict=None):
+        """DB에 데이터 삽입/업데이트 (중복 시 업데이트)"""
         if not rows:
             return
-        # 500개씩 나눠서 전송
+        # 테이블별 기본 on_conflict 키
+        if on_conflict is None:
+            conflict_map = {
+                "daily_supply": "date,stock_code,subject,direction",
+                "daily_market": "date,stock_code",
+                "analysis_scores": "date,stock_code",
+            }
+            on_conflict = conflict_map.get(table, "")
         batch_size = 500
         for i in range(0, len(rows), batch_size):
             batch = rows[i:i+batch_size]
-            resp = requests.post(
-                f"{self.url}/rest/v1/{table}",
-                headers=self.headers,
-                json=batch
-            )
-            if resp.status_code in [200, 201]:
+            url = f"{self.url}/rest/v1/{table}"
+            if on_conflict:
+                url += f"?on_conflict={on_conflict}"
+            resp = requests.post(url, headers=self.headers, json=batch)
+            if resp.status_code in [200, 201, 204]:
                 self.insert_count += len(batch)
             else:
                 print(f"    ⚠️ DB 오류 ({table}): {resp.status_code} {resp.text[:200]}")
@@ -253,9 +259,9 @@ def collect_supply(api, db, target_date, date_short):
                 writer.writerow(header)
                 writer.writerows(csv_rows[:100])
 
-            # DB 저장
+            # DB 저장 (전체 저장 - CSV는 TOP100, DB는 전체)
             if db and db_rows:
-                db.upsert("daily_supply", db_rows[:100])
+                db.upsert("daily_supply", db_rows)
 
             print(f"→ {filename} ({len(csv_rows[:100])}종목)")
             results.append(filename)
@@ -328,6 +334,10 @@ def collect_mktcap(api, db, target_date, date_short, stock_markets):
             csv_rows.append([code, name, market, '', cur_prc, pred_pre, flu_rt,
                             open_pric, high_pric, low_pric, trde_qty, trde_prica,
                             str(mac_won), str(shares)])
+            
+            high_52w = to_int(data.get('250hgst', '0'))
+            high_52w_date = data.get('250hgst_pric_dt', '')
+            low_52w = to_int(data.get('250lwst', '0'))
 
             db_rows.append({
                 "date": date_obj,
@@ -343,7 +353,10 @@ def collect_mktcap(api, db, target_date, date_short, stock_markets):
                 "volume": to_int(trde_qty),
                 "trade_value": to_int(trde_prica),
                 "market_cap": mac_won,
-                "listed_shares": shares
+                "listed_shares": shares,
+                "high_52w": high_52w,
+                "high_52w_date": high_52w_date if high_52w_date else None,
+                "low_52w": low_52w
             })
 
             if (i+1) % 100 == 0:

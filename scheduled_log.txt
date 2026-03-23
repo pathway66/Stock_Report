@@ -1,0 +1,12 @@
+[2026-03-23 15:50:01.08] ?먮룞 ?섏쭛 ?쒖옉 
+============================================================
+Traceback (most recent call last):
+  File "C:\_Stock_Report\run_daily.py", line 60, in <module>
+    main()
+    ~~~~^^
+  File "C:\_Stock_Report\run_daily.py", line 28, in main
+    print("\U0001f52e AI+패스웨이 일일 자동 실행기")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'cp949' codec can't encode character '\U0001f52e' in position 0: illegal multibyte sequence
+[2026-03-23 15:50:01.15] ?먮룞 ?섏쭛 ?꾨즺 
+================================ 
