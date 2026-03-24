@@ -10,3 +10,19 @@ Traceback (most recent call last):
 UnicodeEncodeError: 'cp949' codec can't encode character '\U0001f52e' in position 0: illegal multibyte sequence
 [2026-03-23 15:50:01.15] ?먮룞 ?섏쭛 ?꾨즺 
 ================================ 
+[2026-03-24 15:50:01.62] ?먮룞 ?섏쭛 ?쒖옉 
+============================================================
+[*] AI+패스웨이 일일 자동 실행기
+   날짜: 20260324
+   시간: 2026-03-24 15:50:01
+============================================================
+Traceback (most recent call last):
+  File "C:\_Stock_Report\run_daily.py", line 60, in <module>
+    main()
+    ~~~~^^
+  File "C:\_Stock_Report\run_daily.py", line 36, in main
+    print("\n\U0001f539 STEP 1: 키움 REST API 데이터 수집")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'cp949' codec can't encode character '\U0001f539' in position 2: illegal multibyte sequence
+[2026-03-24 15:50:01.70] ?먮룞 ?섏쭛 ?꾨즺 
+================================ 

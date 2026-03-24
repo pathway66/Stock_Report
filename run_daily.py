@@ -33,18 +33,23 @@ def main():
     start = time.time()
 
     # STEP 1: 데이터 수집
-    print("\n🔹 STEP 1: 키움 REST API 데이터 수집")
+    print("\n[>] STEP 1: 키움 REST API 데이터 수집")
     print("─" * 50)
     if not run("kiwoom_collector_v3.py", [date_arg]):
         print("[X] 데이터 수집 실패. 중단합니다.")
         return
 
     # STEP 2: 분석 엔진
-    print("\n🔹 STEP 2: v3 분석 엔진 실행")
+    print("\n[>] STEP 2: v3 분석 엔진 실행")
     print("─" * 50)
     if not run("kiwoom_analyzer_v1.py", [date_arg]):
         print("[X] 분석 실패.")
         return
+
+    # STEP 3: 텔레그램 봇 (TOP3 선정)
+    print("\n[>] STEP 3: 텔레그램 봇 (TOP3 선정 대기)")
+    print("-" * 50)
+    run("telegram_bot.py", [date_arg])
 
     elapsed = time.time() - start
 
