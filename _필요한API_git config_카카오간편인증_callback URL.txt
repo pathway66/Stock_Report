@@ -14,3 +14,6 @@ https://ofclchxfrjldmrzswgwi.supabase.co/auth/v1/callback
 
 5. 1)구글 OAuth Client ID: 371043544636-bppfk9vksnkidpt43jtccjnmsbd17aai.apps.googleusercontent.com
    2) 구글 OAuth Client Secret: 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
+
+
+6. 금융감독원 opendart API Key: cb01f7135044d2bd944af7b559cea91e1bbe694a
