@@ -11,14 +11,14 @@ import csv
 import os
 
 # ============================================================
-# ★ 폴더 경로 수정하세요 ★
+# * 폴더 경로 수정하세요 *
 # ============================================================
 HERO_DIR = "./hero_data"      # 영웅문4 다운로드 파일 폴더
 API_DIR = "./kiwoom_data"     # API 자동수집 파일 폴더
 # ============================================================
 
 def load_csv(filepath):
-    """CSV 파일 로드 → {종목코드: 순매수금액} 딕셔너리"""
+    """CSV 파일 로드 -> {종목코드: 순매수금액} 딕셔너리"""
     data = {}
     try:
         with open(filepath, encoding='euc-kr') as f:
@@ -33,7 +33,7 @@ def load_csv(filepath):
                     amt = 0
                 data[code] = {'name': name, 'amt': amt}
     except Exception as e:
-        print(f"  [W]️ 파일 읽기 실패: {filepath} ({e})")
+        print(f"  [W] 파일 읽기 실패: {filepath} ({e})")
     return data
 
 
@@ -47,10 +47,10 @@ def compare_one(hero_file, api_file, label):
     api_path = os.path.join(API_DIR, api_file)
 
     if not os.path.exists(hero_path):
-        print(f"  [W]️ 영웅문4 파일 없음: {hero_file}")
+        print(f"  [W] 영웅문4 파일 없음: {hero_file}")
         return
     if not os.path.exists(api_path):
-        print(f"  [W]️ API 파일 없음: {api_file}")
+        print(f"  [W] API 파일 없음: {api_file}")
         return
 
     hero = load_csv(hero_path)
@@ -78,7 +78,7 @@ def compare_one(hero_file, api_file, label):
     print(f"  금액 일치: {match_count}/{len(common)}")
 
     if mismatch:
-        print(f"\n  [W]️ 금액 불일치 상위 5개:")
+        print(f"\n  [W] 금액 불일치 상위 5개:")
         mismatch.sort(key=lambda x: abs(x[4]), reverse=True)
         for code, name, h_amt, a_amt, diff in mismatch[:5]:
             print(f"    {name}({code}): 영웅문4={h_amt:,} API={a_amt:,} 차이={diff:+,}")
@@ -91,7 +91,7 @@ def compare_one(hero_file, api_file, label):
 
     print(f"\n  TOP5 비교:")
     print(f"  {'순위':>4}  {'영웅문4':<20}  {'API':<20}")
-    print(f"  {'':>4}  {'────────────────────':<20}  {'────────────────────':<20}")
+    print(f"  {'':>4}  {'--------------------':<20}  {'--------------------':<20}")
     for i in range(5):
         h = f"{hero_top5[i][1]['name']}({hero_top5[i][1]['amt']:,})" if i < len(hero_top5) else "-"
         a = f"{api_top5[i][1]['name']}({api_top5[i][1]['amt']:,})" if i < len(api_top5) else "-"
@@ -104,7 +104,7 @@ def main():
     print(f"   API 폴더: {os.path.abspath(API_DIR)}")
 
     if not os.path.exists(HERO_DIR):
-        print(f"\n[W]️ hero_data 폴더가 없습니다!")
+        print(f"\n[W] hero_data 폴더가 없습니다!")
         print(f"   1) {HERO_DIR} 폴더를 만들고")
         print(f"   2) 영웅문4에서 다운받은 CSV 파일을 넣으세요")
         print(f"   (파일명 예: 외국인_순매수_260319.csv)")

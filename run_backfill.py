@@ -4,13 +4,13 @@
 6개월치 데이터를 한 번에 수집+분석+DB저장
 
 사용법:
-  python run_backfill.py              → 25/9/22 ~ 어제까지
-  python run_backfill.py 20260101     → 26/1/2 ~ 어제까지
-  python run_backfill.py 20250922 20260319  → 특정 기간
+  python run_backfill.py              -> 25/9/22 ~ 어제까지
+  python run_backfill.py 20260101     -> 26/1/2 ~ 어제까지
+  python run_backfill.py 20250922 20260319  -> 특정 기간
 
 예상 소요: 영업일 1일당 약 3.5분
-  3개월(~65일) → 약 3.8시간
-  6개월(~120일) → 약 7시간
+  3개월(~65일) -> 약 3.8시간
+  6개월(~120일) -> 약 7시간
 """
 
 import subprocess
@@ -87,9 +87,9 @@ def main():
         elapsed = time.time() - total_start
         remaining = (elapsed / max(i, 1)) * (len(days) - i)
         
-        print(f"\n{'─'*50}")
-        print(f"📅 [{i+1}/{len(days)}] {day} (남은 약 {remaining/60:.0f}분)")
-        print(f"{'─'*50}")
+        print(f"\n{'-'*50}")
+        print(f"[D] [{i+1}/{len(days)}] {day} (남은 약 {remaining/60:.0f}분)")
+        print(f"{'-'*50}")
 
         # 수집
         result = subprocess.run(
@@ -97,7 +97,7 @@ def main():
             capture_output=False
         )
         if result.returncode != 0:
-            print(f"  [W]️ 수집 실패: {day}")
+            print(f"  [W] 수집 실패: {day}")
             fail += 1
             continue
 
@@ -107,7 +107,7 @@ def main():
             capture_output=False
         )
         if result.returncode != 0:
-            print(f"  [W]️ 분석 실패: {day}")
+            print(f"  [W] 분석 실패: {day}")
         
         success += 1
 

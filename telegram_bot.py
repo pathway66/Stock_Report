@@ -171,7 +171,7 @@ def main():
     msg = f'<b>[수급분석] {date}</b>\n'
     msg += f'분석 {len(scores)}종목 | 평균 {avg_chg:+.2f}%\n'
     msg += f'5주체전원 {n5}개 | 4주체 {n4}개 | D전략 {d_count}개\n'
-    msg += f'━━━━━━━━━━━━━━━━━━━━\n'
+    msg += f'--------------------\n'
     msg += f'<b>[TOP25 랭킹]</b>\n'
     for i, s in enumerate(scores[:25], 1):
         chg = s['change_pct']

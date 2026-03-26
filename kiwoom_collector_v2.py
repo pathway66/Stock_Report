@@ -6,8 +6,8 @@
 날짜: 자동 인식 (오늘 날짜) 또는 수동 지정
 
 사용법:
-  python kiwoom_collector_v2.py          → 오늘 날짜로 수집
-  python kiwoom_collector_v2.py 20260318 → 특정 날짜 수집
+  python kiwoom_collector_v2.py          -> 오늘 날짜로 수집
+  python kiwoom_collector_v2.py 20260318 -> 특정 날짜 수집
 """
 
 import requests
@@ -19,7 +19,7 @@ import time
 from datetime import datetime
 
 # ============================================================
-# ★ 여기만 수정하세요 ★
+# * 여기만 수정하세요 *
 # ============================================================
 APP_KEY = "To4RH8MD7yxT5C4dtGn-zzuUNXxHXV_eg_EswRmKWZ4"
 SECRET_KEY = "N9N548PPhiOxkxTkxJeo7fJAoAiHdZ9on1K84kNpDmI"
@@ -106,14 +106,14 @@ class KiwoomAPI:
 
 def collect_supply(api, target_date, date_short):
     """수급 데이터 10개 파일 수집"""
-    print(f"\n{'─'*50}")
+    print(f"\n{'-'*50}")
     print(f"[>] STEP 1: 수급 데이터 수집")
-    print(f"{'─'*50}")
+    print(f"{'-'*50}")
 
     results = []
     for inv_name, inv_code in INVESTORS.items():
         for trade_type, trade_name in [('2', '매수'), ('1', '매도')]:
-            print(f"  ▶ {inv_name} 순{trade_name}...", end=" ", flush=True)
+            print(f"  [>] {inv_name} 순{trade_name}...", end=" ", flush=True)
 
             all_items = []
             for mkt_name, mkt_code in MARKETS.items():
@@ -141,7 +141,7 @@ def collect_supply(api, target_date, date_short):
                     f"'{code}", name,
                     item.get('netslmt_qty', '0'), item.get('netslmt_amt', '0'),
                     item.get('prsm_avg_pric', '0'), item.get('cur_prc', '0'),
-                    '▲' if item.get('pre_sig') == '2' else ('▼' if item.get('pre_sig') in ['4','5'] else '-'),
+                    '[^]' if item.get('pre_sig') == '2' else ('[v]' if item.get('pre_sig') in ['4','5'] else '-'),
                     item.get('pred_pre', '0')
                 ])
 
@@ -155,7 +155,7 @@ def collect_supply(api, target_date, date_short):
                 writer.writerow(header)
                 writer.writerows(rows[:100])
 
-            print(f"→ {filename} ({len(rows[:100])}종목)")
+            print(f"-> {filename} ({len(rows[:100])}종목)")
             results.append(filename)
 
     return results
@@ -163,9 +163,9 @@ def collect_supply(api, target_date, date_short):
 
 def collect_mktcap(api, target_date, date_short):
     """시가총액 파일 1개 수집"""
-    print(f"\n{'─'*50}")
+    print(f"\n{'-'*50}")
     print(f"[>] STEP 2: 시가총액 수집 ({MKTCAP_MODE} 모드)")
-    print(f"{'─'*50}")
+    print(f"{'-'*50}")
 
     # 대상 종목 결정
     if MKTCAP_MODE == "full":
@@ -270,7 +270,7 @@ def collect_mktcap(api, target_date, date_short):
         writer.writerows(rows)
 
     elapsed = time.time() - start_time
-    print(f"  → {filename} ({len(rows)}종목, {elapsed:.0f}초)")
+    print(f"  -> {filename} ({len(rows)}종목, {elapsed:.0f}초)")
     return filename, len(rows), errors
 
 
@@ -314,8 +314,8 @@ def main():
     print(f"   출력 폴더: {os.path.abspath(OUTPUT_DIR)}")
     print(f"\n[F] 생성된 파일 (총 {len(supply_files)+1}개):")
     for f in supply_files:
-        print(f"   ✓ {f}")
-    print(f"   ✓ {mkt_file} ({mkt_count}종목)")
+        print(f"   [OK] {f}")
+    print(f"   [OK] {mkt_file} ({mkt_count}종목)")
     print(f"\n[!] 이 파일들을 Claude에 업로드하면 수급분석 리포트를 생성합니다.")
     print(f"[!] 인코딩: UTF-8 (Cursor/Claude/Excel 모두 호환)")
     print("=" * 60)

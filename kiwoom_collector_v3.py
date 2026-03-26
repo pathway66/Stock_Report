@@ -5,8 +5,8 @@ v2.0 + Supabase DB 자동 저장
 수급 10개 + 시총 1개 = 11개 CSV 파일 생성 + DB 동시 저장
 
 사용법:
-  python kiwoom_collector_v3.py          → 오늘 날짜로 수집
-  python kiwoom_collector_v3.py 20260319 → 특정 날짜 수집
+  python kiwoom_collector_v3.py          -> 오늘 날짜로 수집
+  python kiwoom_collector_v3.py 20260319 -> 특정 날짜 수집
 
 필요 라이브러리:
   pip install requests python-dotenv supabase
@@ -90,7 +90,7 @@ class SupabaseDB:
             if resp.status_code in [200, 201, 204]:
                 self.insert_count += len(batch)
             else:
-                print(f"    [W]️ DB 오류 ({table}): {resp.status_code} {resp.text[:200]}")
+                print(f"    [W] DB 오류 ({table}): {resp.status_code} {resp.text[:200]}")
 
     def test_connection(self):
         """연결 테스트"""
@@ -136,7 +136,7 @@ class KiwoomAPI:
     def refresh_token_if_needed(self):
         """토큰 발급 후 20분 경과 시 자동 갱신"""
         if self.token_time and (time.time() - self.token_time) > 1200:
-            print("  🔄 토큰 갱신 중...", end=" ", flush=True)
+            print("  [R] 토큰 갱신 중...", end=" ", flush=True)
             if self.get_token():
                 print("[OK]")
                 return True
@@ -158,7 +158,7 @@ class KiwoomAPI:
             self.call_count += 1
             return resp.json(), resp.headers
         except Exception as e:
-            print(f"  [W]️ API 호출 에러: {e}")
+            print(f"  [W] API 호출 에러: {e}")
             return {"return_code": -1}, {}
 
     def call_paged(self, api_id, url_path, body, max_pages=5):
@@ -194,9 +194,9 @@ class KiwoomAPI:
 # 수급 데이터 수집 + DB 저장
 # ============================================================
 def collect_supply(api, db, target_date, date_short):
-    print(f"\n{'─'*50}")
+    print(f"\n{'-'*50}")
     print(f"[>] STEP 1: 수급 데이터 수집 + DB 저장")
-    print(f"{'─'*50}")
+    print(f"{'-'*50}")
 
     date_obj = datetime.strptime(target_date, "%Y%m%d").strftime("%Y-%m-%d")
     results = []
@@ -213,7 +213,7 @@ def collect_supply(api, db, target_date, date_short):
 
     for inv_name, inv_code in INVESTORS.items():
         for trade_type, trade_name in [('2', '매수'), ('1', '매도')]:
-            print(f"  ▶ {inv_name} 순{trade_name}...", end=" ", flush=True)
+            print(f"  [>] {inv_name} 순{trade_name}...", end=" ", flush=True)
 
             all_db_rows = []
 
@@ -245,7 +245,7 @@ def collect_supply(api, db, target_date, date_short):
 
                     csv_rows.append([
                         f"'{code}", name, qty, amt, avg_prc, cur_prc,
-                        '▲' if item.get('pre_sig') == '2' else ('▼' if item.get('pre_sig') in ['4','5'] else '-'),
+                        '[^]' if item.get('pre_sig') == '2' else ('[v]' if item.get('pre_sig') in ['4','5'] else '-'),
                         item.get('pred_pre', '0')
                     ])
 
@@ -292,7 +292,7 @@ def collect_supply(api, db, target_date, date_short):
             if db and all_db_rows:
                 db.upsert("daily_supply", all_db_rows)
 
-            print(f"→ {inv_name}_순{trade_name} 코스피+코스닥 ({len(all_db_rows)}종목)")
+            print(f"-> {inv_name}_순{trade_name} 코스피+코스닥 ({len(all_db_rows)}종목)")
 
     return results, stock_markets
 
@@ -301,9 +301,9 @@ def collect_supply(api, db, target_date, date_short):
 # 시가총액 수집 + DB 저장
 # ============================================================
 def collect_mktcap(api, db, target_date, date_short, stock_markets):
-    print(f"\n{'─'*50}")
+    print(f"\n{'-'*50}")
     print(f"[>] STEP 2: 시가총액 수집 + DB 저장")
-    print(f"{'─'*50}")
+    print(f"{'-'*50}")
 
     date_obj = datetime.strptime(target_date, "%Y%m%d").strftime("%Y-%m-%d")
 
@@ -416,7 +416,7 @@ def collect_mktcap(api, db, target_date, date_short, stock_markets):
         db.upsert("daily_market", db_rows)
 
     elapsed = time.time() - start_time
-    print(f"  → {filename} ({len(csv_rows)}종목, {elapsed:.0f}초)")
+    print(f"  -> {filename} ({len(csv_rows)}종목, {elapsed:.0f}초)")
     return filename, len(csv_rows), errors
 
 
@@ -451,10 +451,10 @@ def main():
         if db.test_connection():
             print("[OK] 성공")
         else:
-            print("[W]️ 연결 실패 (CSV만 저장합니다)")
+            print("[W] 연결 실패 (CSV만 저장합니다)")
             db = None
     else:
-        print("\n[W]️ Supabase 설정 없음 (CSV만 저장합니다)")
+        print("\n[W] Supabase 설정 없음 (CSV만 저장합니다)")
 
     # 키움 토큰
     api = KiwoomAPI()
@@ -482,8 +482,8 @@ def main():
     print(f"   출력 폴더: {os.path.abspath(OUTPUT_DIR)}")
     print(f"\n[F] 생성된 파일 (총 {len(supply_files)+1}개):")
     for f in supply_files:
-        print(f"   ✓ {f}")
-    print(f"   ✓ {mkt_file} ({mkt_count}종목)")
+        print(f"   [OK] {f}")
+    print(f"   [OK] {mkt_file} ({mkt_count}종목)")
     if db:
         print(f"\n[DB] Supabase DB에도 동시 저장 완료!")
     print("=" * 60)

@@ -4,10 +4,10 @@
 Supabase에서 분석 결과를 읽어 블로그 DOCX를 자동 생성
 
 사용법:
-  python generate_blog.py                          → 최신 날짜, TOP3 자동
-  python generate_blog.py 20260320                 → 날짜 지정
-  python generate_blog.py 20260320 "SNT에너지,태웅,네패스아크"  → TOP 직접 지정
-  python generate_blog.py 20260320 "SNT에너지,태웅,네패스아크" "비에이치"  → TOP + 추천주
+  python generate_blog.py                          -> 최신 날짜, TOP3 자동
+  python generate_blog.py 20260320                 -> 날짜 지정
+  python generate_blog.py 20260320 "SNT에너지,태웅,네패스아크"  -> TOP 직접 지정
+  python generate_blog.py 20260320 "SNT에너지,태웅,네패스아크" "비에이치"  -> TOP + 추천주
 
 필요: pip install python-docx requests python-dotenv
 """
@@ -69,7 +69,7 @@ def generate_blog(target_date, top_names=None, recommend_name=None):
     weekdays = ['월', '화', '수', '목', '금', '토', '일']
     weekday = weekdays[datetime.strptime(target_date, "%Y%m%d").weekday()]
 
-    print(f"📄 블로그 생성: {date_str} ({weekday})")
+    print(f"[D] 블로그 생성: {date_str} ({weekday})")
 
     # 데이터 로드
     scores = db_read("analysis_scores", f"date=eq.{date_str}&order=final_score.desc")
@@ -171,8 +171,8 @@ def generate_blog(target_date, top_names=None, recommend_name=None):
     doc.add_paragraph()
 
     # 시장 총평
-    add_title("■ 시장 총평", size=14, align=WD_ALIGN_PARAGRAPH.LEFT)
-    add_body(f"5주체 전원매수 {len(five_all)}종목, 3주체↑ {len([s for s in scores if s.get('n_buyers',0)>=3])}종목, D전략(외+연+사) {len(d_strategy)}종목이 포착되었습니다.")
+    add_title("# 시장 총평", size=14, align=WD_ALIGN_PARAGRAPH.LEFT)
+    add_body(f"5주체 전원매수 {len(five_all)}종목, 3주체^ {len([s for s in scores if s.get('n_buyers',0)>=3])}종목, D전략(외+연+사) {len(d_strategy)}종목이 포착되었습니다.")
     if five_all:
         sectors = {}
         for s in five_all:
@@ -184,7 +184,7 @@ def generate_blog(target_date, top_names=None, recommend_name=None):
     doc.add_paragraph()
 
     # TOP 종목
-    add_title(f"■ 오늘의 TOP{len(top_stocks)} 종목", size=14, color=RGBColor(0xC0, 0x00, 0x00), align=WD_ALIGN_PARAGRAPH.LEFT)
+    add_title(f"# 오늘의 TOP{len(top_stocks)} 종목", size=14, color=RGBColor(0xC0, 0x00, 0x00), align=WD_ALIGN_PARAGRAPH.LEFT)
     cols = [1.0, 2.5, 3.0, 1.0, 1.2, 2.5]
     table = doc.add_table(rows=1 + len(top_stocks), cols=len(cols))
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -206,14 +206,14 @@ def generate_blog(target_date, top_names=None, recommend_name=None):
     for idx, stock in enumerate(top_stocks):
         sector = get_sector(stock['stock_code'], sector_map)
         chg = stock.get('change_pct', 0)
-        add_title(f"▶ {idx+1}위: {stock['stock_name']} ({stock.get('final_score',0):.1f}점)", size=12, align=WD_ALIGN_PARAGRAPH.LEFT)
+        add_title(f"[>] {idx+1}위: {stock['stock_name']} ({stock.get('final_score',0):.1f}점)", size=12, align=WD_ALIGN_PARAGRAPH.LEFT)
         add_body(f"주요제품: {sector}")
         add_body(f"{stock.get('n_buyers',0)}주체 매수 ({stock.get('combo','')}), 당일 {chg:+.2f}%")
         doc.add_paragraph()
 
     # 추천주
     if recommend:
-        add_title(f"■ 추천주: {recommend['stock_name']}", size=14, color=RGBColor(0x70, 0x30, 0xA0), align=WD_ALIGN_PARAGRAPH.LEFT)
+        add_title(f"# 추천주: {recommend['stock_name']}", size=14, color=RGBColor(0x70, 0x30, 0xA0), align=WD_ALIGN_PARAGRAPH.LEFT)
         rec_sector = get_sector(recommend['stock_code'], sector_map)
         add_body(f"주요제품: {rec_sector}")
         add_body(f"{recommend.get('n_buyers',0)}주체 매수 ({recommend.get('combo','')}), 점수 {recommend.get('final_score',0):.1f}, 당일 {recommend.get('change_pct',0):+.2f}%")
@@ -221,7 +221,7 @@ def generate_blog(target_date, top_names=None, recommend_name=None):
 
     # 5주체 전원매수
     if five_all:
-        add_title(f"■ 5주체 전원매수 ({len(five_all)}종목)", size=14, align=WD_ALIGN_PARAGRAPH.LEFT)
+        add_title(f"# 5주체 전원매수 ({len(five_all)}종목)", size=14, align=WD_ALIGN_PARAGRAPH.LEFT)
         t2 = doc.add_table(rows=1 + len(five_all), cols=4)
         t2.alignment = WD_TABLE_ALIGNMENT.CENTER
         for i, h in enumerate(['종목명', '주요제품', '점수', '등락률']):
@@ -239,7 +239,7 @@ def generate_blog(target_date, top_names=None, recommend_name=None):
 
     # 전일 TOP3 성과
     if prev_top3:
-        add_title("■ 전일 TOP3 성과", size=14, align=WD_ALIGN_PARAGRAPH.LEFT)
+        add_title("# 전일 TOP3 성과", size=14, align=WD_ALIGN_PARAGRAPH.LEFT)
         t3 = doc.add_table(rows=1 + len(prev_top3) + 1, cols=3)
         t3.alignment = WD_TABLE_ALIGNMENT.CENTER
         for i, h in enumerate(['종목명', '주요제품', '익일등락률']):
@@ -339,7 +339,7 @@ def save_top3_history(target_date, top_stocks):
     if resp.status_code in [200, 201]:
         print(f"  [OK] top3_history 저장 완료 ({len(rows)}종목, 만료일: {expires_date})")
     else:
-        print(f"  [W]️ top3_history 저장 실패: {resp.status_code} {resp.text[:100]}")
+        print(f"  [W] top3_history 저장 실패: {resp.status_code} {resp.text[:100]}")
 
 def main():
     target_date = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%Y%m%d")
