@@ -1,7 +1,7 @@
 import requests, json, os, sys, time
 from dotenv import load_dotenv
 load_dotenv()
-from market_indicators import get_market_indicators, format_indicators_telegram
+from market_indicators import get_market_indicators
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
@@ -142,7 +142,8 @@ def generate_ai_analysis(stock, supply_data, market_data):
 
 5. 종합 의견: 해당 종목의 수급 패턴에 대한 종합적인 평가와 향후 관전 포인트.
 
-마지막 문장까지 완결성 있게 마무리해주세요. 중간에 끊기지 않도록 주의해주세요."""
+마지막 문장까지 반드시 완결성 있게 마무리해주세요. 절대로 문장이 중간에 끊기면 안 됩니다. 마지막 문장은 반드시 마침표(.)로 끝나야 합니다.
+마크다운 형식(## 소제목)을 사용하여 가독성 있게 작성해주세요."""
 
     try:
         r = requests.post(
@@ -154,10 +155,10 @@ def generate_ai_analysis(stock, supply_data, market_data):
             },
             json={
                 'model': 'claude-sonnet-4-20250514',
-                'max_tokens': 1000,
+                'max_tokens': 2000,
                 'messages': [{'role': 'user', 'content': prompt}]
             },
-            timeout=60
+            timeout=120
         )
         if r.status_code == 200:
             return r.json()['content'][0]['text']
