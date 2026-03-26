@@ -107,7 +107,7 @@ def get_prev_top3_performance(date, market_dict):
     return prev_date, {'stocks': results, 'avg_return': round(avg_ret, 2)}
 
 def generate_ai_analysis(stock, supply_data, market_data):
-    """Claude API로 종목별 상세 분석 생성"""
+    """Claude API로 종목별 상세 분석 생성 (20~30줄)"""
     if not ANTHROPIC_API_KEY:
         return ''
 
@@ -117,21 +117,32 @@ def generate_ai_analysis(stock, supply_data, market_data):
 
     amounts_str = ', '.join([f"{k}: {v:+,}백만원" for k, v in amounts.items() if v != 0])
 
-    prompt = f"""한국 주식 종목의 수급 분석 코멘트를 2~3문장으로 작성해주세요. 존댓말(습니다체)로 작성하고, 투자자에게 유용한 인사이트를 제공해주세요.
+    prompt = f"""당신은 한국 주식시장 전문 애널리스트입니다. 아래 종목의 수급 데이터를 바탕으로 상세한 투자 분석 리포트를 작성해주세요.
 
-종목명: {stock['stock_name']}
-섹터: {stock['sector']}
-매수주체 조합: {stock['combo']} ({stock['n_buyers']}주체)
-최종점수: {stock['final_score']:.1f}점
-등락률: {stock['change_pct']:+.2f}%
-시가총액: {mcap:,}억원
-주체별 순매수 금액: {amounts_str}
-충돌패널티: {stock['conflict_penalty']}
+[종목 정보]
+- 종목명: {stock['stock_name']}
+- 섹터/주요제품: {stock['sector']}
+- 매수주체 조합: {stock['combo']} ({stock['n_buyers']}주체 동시매수)
+- 최종점수: {stock['final_score']:.1f}점
+- 당일 등락률: {stock['change_pct']:+.2f}%
+- 시가총액: {mcap:,}억원
+- 주체별 순매수 금액: {amounts_str}
+- 충돌패널티: {stock['conflict_penalty']}
 
-다음을 포함해주세요:
-1. 매수 주체 구성의 특징 (어떤 주체가 얼마나 매수했는지)
-2. 투자 포인트 또는 주의점
-짧고 핵심적으로 작성해주세요."""
+[작성 요구사항]
+존댓말(습니다체)로 작성하고, 아래 항목을 모두 포함하여 최소 15줄 이상 작성해주세요:
+
+1. 수급 분석: 각 매수 주체(외국인/연기금/투신/사모펀드/기타법인)의 매수 금액과 그 의미. 특히 어떤 주체의 매수가 가장 주목할 만한지, 그리고 복수 주체 동시 매수의 시그널 의미를 설명.
+
+2. 섹터 및 종목 특성: 이 종목이 속한 섹터의 현재 시장 트렌드, 종목의 핵심 사업 내용과 경쟁력. 해당 섹터가 주목받는 이유.
+
+3. 기술적 관점: 당일 {stock['change_pct']:+.2f}% 등락의 의미, 시가총액 {mcap:,}억원 대비 수급 강도, 단기 모멘텀 전망.
+
+4. 투자 포인트: 매수 관점에서의 긍정적 요인과 리스크 요인을 균형있게 제시.
+
+5. 종합 의견: 해당 종목의 수급 패턴에 대한 종합적인 평가와 향후 관전 포인트.
+
+마지막 문장까지 완결성 있게 마무리해주세요. 중간에 끊기지 않도록 주의해주세요."""
 
     try:
         r = requests.post(
@@ -143,10 +154,10 @@ def generate_ai_analysis(stock, supply_data, market_data):
             },
             json={
                 'model': 'claude-sonnet-4-20250514',
-                'max_tokens': 200,
+                'max_tokens': 1000,
                 'messages': [{'role': 'user', 'content': prompt}]
             },
-            timeout=30
+            timeout=60
         )
         if r.status_code == 200:
             return r.json()['content'][0]['text']
@@ -188,7 +199,7 @@ def save_blog_post(date, scores, picks, market_dict, d_count, supply_data, prev_
 
     sections = []
 
-    # 섹션 0: 주요 시장 지표 (있는 경우)
+    # 섹션 1: 주요 시장 지표 (있는 경우)
     if indicators:
         sections.append({
             'title': '주요 시장 지표',
@@ -197,39 +208,7 @@ def save_blog_post(date, scores, picks, market_dict, d_count, supply_data, prev_
             'indicators': indicators
         })
 
-    # 섹션 1: 시장 요약
-    sections.append({
-        'title': '1. 시장 요약',
-        'type': 'market_summary',
-        'body': f'{date} 분석 대상 {len(scores)}개 종목의 평균 등락률은 {avg_chg:+.2f}%를 기록했습니다. 5주체 전원매수 {n5}개, D전략(외+연+사) {d_count}개 종목이 포착되었습니다.',
-        'data': {'total_stocks': len(scores), 'avg_change': round(avg_chg, 2), 'five_buyers': n5, 'd_strategy': d_count}
-    })
-
-    # 섹션 2: 전일 TOP3 성과 (있는 경우만)
-    prev_date, prev_data = prev_perf if prev_perf else (None, None)
-    if prev_data and prev_data['stocks']:
-        perf_body = f"전일({prev_date}) 선정 TOP3의 현재 성과입니다. 평균 수익률 {prev_data['avg_return']:+.2f}%를 기록하고 있습니다."
-        perf_stocks = []
-        for ps in prev_data['stocks']:
-            ret_icon = '+' if ps['return_pct'] >= 0 else ''
-            perf_stocks.append({
-                'rank': ps['rank'],
-                'name': ps['name'],
-                'sector': ps['sector'],
-                'base_price': ps['base_price'],
-                'current_price': ps['current_price'],
-                'return_pct': ps['return_pct'],
-                'combo': ps['combo']
-            })
-        sections.append({
-            'title': '2. 전일 TOP3 성과',
-            'type': 'prev_performance',
-            'body': perf_body,
-            'data': {'prev_date': prev_date, 'avg_return': prev_data['avg_return']},
-            'stocks': perf_stocks
-        })
-
-    # 섹션 3: 최종선정 TOP3 (AI 분석 포함)
+    # 섹션 2: 최종선정 TOP3 (AI 분석 포함)
     print('  [>] TOP3 종목별 AI 분석 생성 중...')
     stocks_data = []
     for i, s in enumerate(top3_stocks):
@@ -266,9 +245,8 @@ def save_blog_post(date, scores, picks, market_dict, d_count, supply_data, prev_
             'analysis': analysis
         })
 
-    section_num = '3' if prev_data else '2'
     sections.append({
-        'title': f'{section_num}. 최종선정 TOP3',
+        'title': '오늘 최종선정 TOP3',
         'type': 'top3',
         'body': 'AI 수급분석 점수와 기관 매수 패턴을 종합하여 최종 선정된 TOP3 종목입니다.',
         'stocks': stocks_data
