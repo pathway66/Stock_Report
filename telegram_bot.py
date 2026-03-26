@@ -1,11 +1,13 @@
 import requests, json, os, sys, time
 from dotenv import load_dotenv
 load_dotenv()
+from market_indicators import get_market_indicators, format_indicators_telegram
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
 
 sb_headers = {'apikey': SUPABASE_KEY, 'Authorization': f'Bearer {SUPABASE_KEY}', 'Content-Type': 'application/json'}
 
@@ -37,6 +39,25 @@ def get_market(date):
     )
     return {m['stock_code']: m for m in r.json()}
 
+def get_supply(date):
+    """주체별 매수/매도 데이터 가져오기"""
+    r = requests.get(
+        f'{SUPABASE_URL}/rest/v1/daily_supply?date=eq.{date}&limit=5000',
+        headers=sb_headers
+    )
+    supply_by_stock = {}
+    for row in r.json():
+        code = row['stock_code']
+        if code not in supply_by_stock:
+            supply_by_stock[code] = {}
+        subj = row['subject']
+        amt = row.get('amount', 0)
+        if row['direction'] == '매수':
+            supply_by_stock[code][subj] = supply_by_stock[code].get(subj, 0) + amt
+        else:
+            supply_by_stock[code][subj] = supply_by_stock[code].get(subj, 0) + amt
+    return supply_by_stock
+
 def get_d_strategy(date):
     r = requests.get(
         f'{SUPABASE_URL}/rest/v1/daily_supply?date=eq.{date}&direction=eq.매수&limit=2000',
@@ -51,6 +72,87 @@ def get_d_strategy(date):
     d_stocks = [code for code, subjects in buy_data.items()
                 if all(s in subjects for s in ['외국인', '연기금', '사모펀드'])]
     return d_stocks
+
+def get_prev_top3_performance(date, market_dict):
+    """전일 TOP3 성과 추적"""
+    r = requests.get(
+        f'{SUPABASE_URL}/rest/v1/top3_history?date=lt.{date}&order=date.desc&limit=3',
+        headers=sb_headers
+    )
+    prev_top3 = r.json()
+    if not prev_top3:
+        return None, None
+
+    prev_date = prev_top3[0]['date']
+    prev_stocks = [t for t in prev_top3 if t['date'] == prev_date]
+    prev_stocks.sort(key=lambda x: x['rank'])
+
+    results = []
+    for t in prev_stocks:
+        m = market_dict.get(t['stock_code'], {})
+        current_price = m.get('close_price', 0)
+        base_price = t.get('base_price', 0)
+        ret = ((current_price - base_price) / base_price * 100) if base_price > 0 else 0
+        results.append({
+            'rank': t['rank'],
+            'name': t['stock_name'],
+            'sector': t['sector'],
+            'base_price': base_price,
+            'current_price': current_price,
+            'return_pct': round(ret, 2),
+            'combo': t.get('combo', '')
+        })
+
+    avg_ret = sum(r['return_pct'] for r in results) / len(results) if results else 0
+    return prev_date, {'stocks': results, 'avg_return': round(avg_ret, 2)}
+
+def generate_ai_analysis(stock, supply_data, market_data):
+    """Claude API로 종목별 상세 분석 생성"""
+    if not ANTHROPIC_API_KEY:
+        return ''
+
+    amounts = supply_data.get(stock['stock_code'], {})
+    m = market_data.get(stock['stock_code'], {})
+    mcap = round(m.get('market_cap', 0) / 100000000) if m else 0
+
+    amounts_str = ', '.join([f"{k}: {v:+,}백만원" for k, v in amounts.items() if v != 0])
+
+    prompt = f"""한국 주식 종목의 수급 분석 코멘트를 2~3문장으로 작성해주세요. 존댓말(습니다체)로 작성하고, 투자자에게 유용한 인사이트를 제공해주세요.
+
+종목명: {stock['stock_name']}
+섹터: {stock['sector']}
+매수주체 조합: {stock['combo']} ({stock['n_buyers']}주체)
+최종점수: {stock['final_score']:.1f}점
+등락률: {stock['change_pct']:+.2f}%
+시가총액: {mcap:,}억원
+주체별 순매수 금액: {amounts_str}
+충돌패널티: {stock['conflict_penalty']}
+
+다음을 포함해주세요:
+1. 매수 주체 구성의 특징 (어떤 주체가 얼마나 매수했는지)
+2. 투자 포인트 또는 주의점
+짧고 핵심적으로 작성해주세요."""
+
+    try:
+        r = requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'x-api-key': ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json'
+            },
+            json={
+                'model': 'claude-sonnet-4-20250514',
+                'max_tokens': 200,
+                'messages': [{'role': 'user', 'content': prompt}]
+            },
+            timeout=30
+        )
+        if r.status_code == 200:
+            return r.json()['content'][0]['text']
+    except Exception as e:
+        print(f'  AI 분석 생성 실패 ({stock["stock_name"]}): {e}')
+    return ''
 
 def save_top3(date, picks, scores, market_dict):
     for rank, idx in enumerate(picks, 1):
@@ -76,7 +178,7 @@ def save_top3(date, picks, scores, market_dict):
         )
     return True
 
-def save_blog_post(date, scores, picks, market_dict, d_count):
+def save_blog_post(date, scores, picks, market_dict, d_count, supply_data, prev_perf, indicators=None):
     top3_stocks = [scores[i] for i in picks]
     avg_chg = sum(s['change_pct'] for s in scores) / len(scores) if scores else 0
     n5 = sum(1 for s in scores if s['n_buyers'] == 5)
@@ -85,6 +187,17 @@ def save_blog_post(date, scores, picks, market_dict, d_count):
     summary = f"분석 {len(scores)}종목, 평균 {avg_chg:+.2f}%, 5주체전원매수 {n5}개, D전략 {d_count}개"
 
     sections = []
+
+    # 섹션 0: 주요 시장 지표 (있는 경우)
+    if indicators:
+        sections.append({
+            'title': '주요 시장 지표',
+            'type': 'market_indicators',
+            'body': '',
+            'indicators': indicators
+        })
+
+    # 섹션 1: 시장 요약
     sections.append({
         'title': '1. 시장 요약',
         'type': 'market_summary',
@@ -92,9 +205,52 @@ def save_blog_post(date, scores, picks, market_dict, d_count):
         'data': {'total_stocks': len(scores), 'avg_change': round(avg_chg, 2), 'five_buyers': n5, 'd_strategy': d_count}
     })
 
+    # 섹션 2: 전일 TOP3 성과 (있는 경우만)
+    prev_date, prev_data = prev_perf if prev_perf else (None, None)
+    if prev_data and prev_data['stocks']:
+        perf_body = f"전일({prev_date}) 선정 TOP3의 현재 성과입니다. 평균 수익률 {prev_data['avg_return']:+.2f}%를 기록하고 있습니다."
+        perf_stocks = []
+        for ps in prev_data['stocks']:
+            ret_icon = '+' if ps['return_pct'] >= 0 else ''
+            perf_stocks.append({
+                'rank': ps['rank'],
+                'name': ps['name'],
+                'sector': ps['sector'],
+                'base_price': ps['base_price'],
+                'current_price': ps['current_price'],
+                'return_pct': ps['return_pct'],
+                'combo': ps['combo']
+            })
+        sections.append({
+            'title': '2. 전일 TOP3 성과',
+            'type': 'prev_performance',
+            'body': perf_body,
+            'data': {'prev_date': prev_date, 'avg_return': prev_data['avg_return']},
+            'stocks': perf_stocks
+        })
+
+    # 섹션 3: 최종선정 TOP3 (AI 분석 포함)
+    print('  [>] TOP3 종목별 AI 분석 생성 중...')
     stocks_data = []
     for i, s in enumerate(top3_stocks):
         m = market_dict.get(s['stock_code'], {})
+        amounts = supply_data.get(s['stock_code'], {})
+
+        # AI 분석 생성
+        analysis = generate_ai_analysis(s, supply_data, market_dict)
+        if analysis:
+            print(f'    {s["stock_name"]}: AI 분석 완료')
+        else:
+            print(f'    {s["stock_name"]}: AI 분석 건너뜀')
+        time.sleep(1)  # API rate limit
+
+        # 주체별 금액 (억원 단위)
+        amounts_display = {}
+        for subj in ['외국인', '연기금', '투신', '사모펀드', '기타법인']:
+            amt = amounts.get(subj, 0)
+            if amt != 0:
+                amounts_display[subj] = round(amt / 100)  # 백만원 -> 억원
+
         stocks_data.append({
             'rank': i + 1,
             'name': s['stock_name'],
@@ -106,11 +262,13 @@ def save_blog_post(date, scores, picks, market_dict, d_count):
             'change_pct': s['change_pct'],
             'base_price': m.get('close_price', 0),
             'market_cap': round(m.get('market_cap', 0) / 100000000),
-            'analysis': ''
+            'amounts': amounts_display,
+            'analysis': analysis
         })
 
+    section_num = '3' if prev_data else '2'
     sections.append({
-        'title': '2. 최종선정 TOP3',
+        'title': f'{section_num}. 최종선정 TOP3',
         'type': 'top3',
         'body': 'AI 수급분석 점수와 기관 매수 패턴을 종합하여 최종 선정된 TOP3 종목입니다.',
         'stocks': stocks_data
@@ -126,12 +284,25 @@ def save_blog_post(date, scores, picks, market_dict, d_count):
         'market_summary': json.dumps({'avg_change': round(avg_chg, 2), 'total_stocks': len(scores), 'five_buyers': n5, 'd_strategy': d_count}, ensure_ascii=False)
     }
 
-    r = requests.post(
-        f'{SUPABASE_URL}/rest/v1/blog_posts',
-        headers={**sb_headers, 'Prefer': 'return=representation'},
-        json=report
+    # upsert (같은 날짜 중복 방지)
+    r = requests.get(
+        f'{SUPABASE_URL}/rest/v1/blog_posts?date=eq.{date}&limit=1',
+        headers=sb_headers
     )
-    return r.status_code in [200, 201]
+    existing = r.json()
+    if existing:
+        r = requests.patch(
+            f'{SUPABASE_URL}/rest/v1/blog_posts?date=eq.{date}',
+            headers={**sb_headers, 'Prefer': 'return=minimal'},
+            json=report
+        )
+    else:
+        r = requests.post(
+            f'{SUPABASE_URL}/rest/v1/blog_posts',
+            headers={**sb_headers, 'Prefer': 'return=representation'},
+            json=report
+        )
+    return r.status_code in [200, 201, 204]
 
 def main():
     date = sys.argv[1] if len(sys.argv) > 1 else None
@@ -151,12 +322,16 @@ def main():
         return
 
     market_dict = get_market(date)
+    supply_data = get_supply(date)
     d_stocks = get_d_strategy(date)
     d_count = len(d_stocks)
 
     avg_chg = sum(s['change_pct'] for s in scores) / len(scores)
     n5 = sum(1 for s in scores if s['n_buyers'] == 5)
     n4 = sum(1 for s in scores if s['n_buyers'] == 4)
+
+    # 전일 TOP3 성과
+    prev_perf = get_prev_top3_performance(date, market_dict)
 
     # D전략 종목 메시지
     d_msg = f'<b>[D전략] 외+연+사 동시매수: {d_count}개</b>\n'
@@ -171,7 +346,7 @@ def main():
     msg = f'<b>[수급분석] {date}</b>\n'
     msg += f'분석 {len(scores)}종목 | 평균 {avg_chg:+.2f}%\n'
     msg += f'5주체전원 {n5}개 | 4주체 {n4}개 | D전략 {d_count}개\n'
-    msg += f'--------------------\n'
+    msg += f'------------------------------\n'
     msg += f'<b>[TOP25 랭킹]</b>\n'
     for i, s in enumerate(scores[:25], 1):
         chg = s['change_pct']
@@ -179,6 +354,15 @@ def main():
         star = '*' if s['n_buyers'] == 5 else ''
         conflict = '!' if s['conflict_penalty'] < 0 else ''
         msg += f'{i}. {star}{s["stock_name"]} [{s["combo"]}] {s["final_score"]:.1f} {chg_icon}{chg:.2f}% {conflict}\n'
+
+    # 전일 TOP3 성과 메시지
+    prev_date, prev_data = prev_perf
+    if prev_data and prev_data['stocks']:
+        msg += f'\n<b>[전일 TOP3 성과] {prev_date}</b>\n'
+        for ps in prev_data['stocks']:
+            ret_icon = '+' if ps['return_pct'] >= 0 else ''
+            msg += f'{ps["rank"]}위 {ps["name"]}: {ret_icon}{ps["return_pct"]:.2f}%\n'
+        msg += f'평균: {prev_data["avg_return"]:+.2f}%\n'
 
     msg += f'\n<b>TOP3 선정: 번호 입력 (예: 1,2,8)</b>'
 
@@ -228,7 +412,7 @@ def main():
                 for rank, idx in enumerate(picks, 1):
                     s = scores[idx]
                     confirm_msg += f'{rank}위: {s["stock_name"]} ({s["sector"]}) {s["final_score"]:.1f}점\n'
-                confirm_msg += f'\n맞으면 "Y", 다시 입력하려면 번호를 다시 입력하세요.'
+                confirm_msg += f'\n맞으면 "Y", 다시 입력하려면 번호를 다시 입력하세요'
                 send_telegram(confirm_msg)
 
                 # 확인 대기
@@ -242,7 +426,10 @@ def main():
 
                         if conf_text == 'Y':
                             save_top3(date, picks, scores, market_dict)
-                            save_blog_post(date, scores, picks, market_dict, d_count)
+                            print('[>] TOP3 저장 완료. 블로그 리포트 생성 중...')
+                            print('[>] 주요 시장 지표 수집 중...')
+                            indicators = get_market_indicators(date)
+                            save_blog_post(date, scores, picks, market_dict, d_count, supply_data, prev_perf, indicators)
 
                             result_msg = f'<b>[OK] TOP3 저장 완료!</b>\n'
                             for rank, idx in enumerate(picks, 1):
@@ -263,7 +450,7 @@ def main():
                                     for rank, idx in enumerate(picks, 1):
                                         s = scores[idx]
                                         confirm_msg += f'{rank}위: {s["stock_name"]} ({s["sector"]}) {s["final_score"]:.1f}점\n'
-                                    confirm_msg += f'\n맞으면 "Y", 다시 입력하려면 번호를 다시 입력하세요.'
+                                    confirm_msg += f'\n맞으면 "Y", 다시 입력하려면 번호를 다시 입력하세요'
                                     send_telegram(confirm_msg)
                             except ValueError:
                                 send_telegram('[!] 숫자를 콤마로 구분하여 입력하세요 (예: 1,2,8)')
@@ -276,7 +463,7 @@ def main():
 
         time.sleep(2)
 
-    send_telegram('[!] 10분 타임아웃. 나중에 다시 실행하세요.')
+    send_telegram('[!] 10분 타임아웃. 수동으로 다시 실행하세요.')
     print('[!] 타임아웃')
 
 if __name__ == '__main__':
