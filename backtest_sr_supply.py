@@ -353,6 +353,7 @@ def main():
     prof = generate_per_stock_profile(res, ix)
     if len(res)>0: res.to_csv("backtest_sr_supply_result.csv",index=False,encoding="utf-8-sig"); print(f"\n💾 상세: backtest_sr_supply_result.csv ({len(res):,}건)")
     if len(summ)>0: summ.to_csv("backtest_sr_supply_summary.csv",index=False,encoding="utf-8-sig"); print(f"💾 요약: backtest_sr_supply_summary.csv")
+    if len(prof)>0: save_grades_to_supabase(prof)
     if len(prof)>0: prof.to_csv("backtest_per_stock_profile.csv",index=False,encoding="utf-8-sig"); print(f"💾 종목별: backtest_per_stock_profile.csv ({len(prof)}종목)")
     el = time.time()-t0; print(f"\n⏱ 소요: {el:.1f}초 ({el/60:.1f}분)")
     if len(summ)>0:
@@ -363,6 +364,27 @@ def main():
                 g = "✅" if r["success_rate"]>=70 else ("⚠️" if r["success_rate"]>=50 else "❌")
                 print(f"  {g} {r['combo_tier']} ({r['combo_name']}): 성공률 {r['success_rate']}% | MDD {r['avg_max_drawdown']}% | 수익 {r['avg_final_return']}% | {r['total_events']}건")
             print(); print("  ✅ S > A > B 순서 유지 → 콤보 검증 성공"); print("  ❌ 순서 뒤집힘 → 콤보 재검토 필요")
+
+def save_grades_to_supabase(profile_df):
+    if len(profile_df) == 0: return
+    print("\n📤 Supabase sr_supply_grades 저장 중...")
+    today = datetime.now().strftime("%Y-%m-%d")
+    records = []
+    for _, r in profile_df.iterrows():
+        rate = float(r["overall_success_rate"])
+        grade = "strong" if rate >= 60 else ("normal" if rate >= 40 else "weak")
+        records.append({"stock_code":r["stock_code"],"stock_name":r["stock_name"],"stock_index":r["stock_index"],"grade":grade,"success_rate":rate,"avg_mdd":float(r["overall_avg_mdd"]),"avg_return":float(r["overall_avg_return"]),"best_combo":r["best_combo"],"dominant_combo":r["dominant_combo"],"total_events":int(r["total_events"]),"backtest_date":today})
+    ok=0; ng=0
+    for i in range(0, len(records), 50):
+        batch = records[i:i+50]
+        resp = requests.post(f"{SUPABASE_URL}/rest/v1/sr_supply_grades", headers={**HEADERS, "Prefer":"resolution=merge-duplicates"}, json=batch)
+        if resp.status_code in (200, 201): ok += len(batch)
+        else: ng += len(batch); print(f"  ERROR: {resp.status_code} {resp.text[:100]}")
+    print(f"  -> 저장: {ok}건 성공, {ng}건 실패")
+    s = sum(1 for x in records if x["grade"]=="strong")
+    n = sum(1 for x in records if x["grade"]=="normal")
+    w = sum(1 for x in records if x["grade"]=="weak")
+    print(f"  -> 등급: 강({s}) / 보통({n}) / 약({w})")
 
 if __name__ == "__main__":
     main()
