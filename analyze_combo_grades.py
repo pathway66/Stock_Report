@@ -349,60 +349,39 @@ def analyze(supply_raw, ohlcv_raw, market_raw):
             skipped += 1
             continue
         
-        # Best combo (초과수익률 D+5 기준)
-        best = max(valid_combos, key=lambda x: x['excess_d5'])
-        worst = min(valid_combos, key=lambda x: x['excess_d5'])
-        dominant = max(valid_combos, key=lambda x: x['count'])
+        # 초과수익률 기준 정렬 → 상위 5개
+        valid_combos.sort(key=lambda x: -x['excess_d5'])
+        top5 = valid_combos[:5]
+        total_valid = len(valid_combos)
         
-        # 종목 전체 평균
-        all_d5 = []
-        all_excess = []
-        for vc in valid_combos:
-            all_d5.extend(combo_returns[vc['combo_key']]['d5'])
-            for i, r in enumerate(combo_returns[vc['combo_key']]['d5']):
-                idx_list = combo_index_returns[vc['combo_key']]['d5']
-                if i < len(idx_list):
-                    all_excess.append(r - idx_list[i])
+        for rank, vc in enumerate(top5, 1):
+            ex = vc['excess_d5']
+            grade = 'S' if ex > 0 else 'A' if ex >= -2 else 'B' if ex >= -7 else 'C'
+            
+            results.append({
+                'stock_code': code,
+                'stock_name': stock_name,
+                'market': stock_market,
+                'combo': vc['label'],
+                'combo_rank': rank,
+                'grade': grade,
+                'avg_d1': vc['avg_d1'],
+                'avg_d3': vc['avg_d3'],
+                'avg_d5': vc['avg_d5'],
+                'avg_d10': vc['avg_d10'],
+                'index_d5': vc['avg_idx_d5'],
+                'excess_d5': vc['excess_d5'],
+                'win_rate_d5': vc['win_rate_d5'],
+                'combo_count': vc['count'],
+                'is_best': rank == 1,
+                'total_combos': total_valid,
+                'analyzed_days': len(all_dates),
+                'period_start': all_dates[0] if all_dates else None,
+                'period_end': all_dates[-1] if all_dates else None,
+                'backtest_date': datetime.now().strftime('%Y-%m-%d'),
+            })
         
-        overall_avg = sum(all_d5) / len(all_d5) if all_d5 else 0
-        overall_win = sum(1 for r in all_d5 if r > 0) / len(all_d5) * 100 if all_d5 else 0
-        
-        # 등급 결정 (초과수익률 기준)
-        ex = best['excess_d5']
-        if ex > 0:
-            grade = 'S'
-        elif ex >= -2:
-            grade = 'A'
-        elif ex >= -7:
-            grade = 'B'
-        else:
-            grade = 'C'
-        
-        total_events = sum(vc['count'] for vc in valid_combos)
-        
-        results.append({
-            'stock_code': code,
-            'stock_name': stock_name,
-            'stock_index': stock_market,
-            'grade': grade,
-            'success_rate': round(overall_win, 1),
-            'avg_mdd': round(best['avg_idx_d5'], 2),  # 지수 수익률 저장용
-            'avg_return': round(overall_avg, 2),
-            'best_combo': best['label'],
-            'dominant_combo': dominant['label'],
-            'worst_combo': worst['label'],
-            'total_events': total_events,
-            'backtest_date': datetime.now().strftime('%Y-%m-%d'),
-            'avg_d1': best['avg_d1'],
-            'avg_d3': best['avg_d3'],
-            'avg_d5': best['avg_d5'],
-            'avg_d10': best['avg_d10'],
-            'win_rate_d1': best['win_rate_d1'],
-            'win_rate_d5': best['win_rate_d5'],
-            'analyzed_days': len(all_dates),
-            'period_start': all_dates[0] if all_dates else None,
-            'period_end': all_dates[-1] if all_dates else None,
-        })
+        analyzed += 1
         analyzed += 1
     
     print(f"   분석 완료: {analyzed}종목 / 스킵: {skipped}종목")
@@ -413,45 +392,61 @@ def analyze(supply_raw, ohlcv_raw, market_raw):
 # ============================================================
 def print_summary(results):
     print("\n" + "=" * 70)
-    print("📊 종목별 Best Combo 분석 결과 (v2 — 지수 초과수익률 기반)")
+    print("📊 종목별 Best Combo 분석 결과 (v3 — 종목당 상위 5개 combo)")
     print("=" * 70)
     
+    # best combo만 추출 (combo_rank == 1)
+    best_only = [r for r in results if r['is_best']]
+    total_stocks = len(best_only)
+    total_rows = len(results)
+    
+    print(f"\n분석 종목: {total_stocks}개 / 총 저장 행: {total_rows}개 (종목당 최대 5개 combo)")
+    
+    # 등급 분포 (combo별)
     grade_dist = defaultdict(int)
     for r in results:
         grade_dist[r['grade']] += 1
     
-    print(f"\n등급 분포 (S:초과>0 / A:±2% / B:-2~-7% / C:<-7%):")
+    print(f"\n전체 combo 등급 분포:")
     for g in ['S', 'A', 'B', 'C']:
         cnt = grade_dist.get(g, 0)
-        pct = cnt / len(results) * 100 if results else 0
-        bar = '█' * (cnt // 2)
-        print(f"  {g}등급: {cnt:>4}종목 ({pct:.0f}%) {bar}")
+        pct = cnt / total_rows * 100 if total_rows else 0
+        bar = '█' * (cnt // 5)
+        print(f"  {g}등급: {cnt:>4}건 ({pct:.0f}%) {bar}")
     
-    print(f"\nBest combo TOP10:")
+    # Best combo(rank1) 분포
+    print(f"\nBest combo TOP10 (rank=1 종목 기준):")
     combo_dist = defaultdict(int)
-    for r in results:
-        combo_dist[r['best_combo']] += 1
+    for r in best_only:
+        combo_dist[r['combo']] += 1
     for combo, cnt in sorted(combo_dist.items(), key=lambda x: -x[1])[:10]:
         print(f"  {combo:<25s} {cnt:>4}종목")
     
-    # S등급 TOP20
-    s_grade = sorted([r for r in results if r['grade'] == 'S'], key=lambda x: -x['avg_d5'])
-    if s_grade:
-        print(f"\n🏆 S등급 종목 TOP20 ({len(s_grade)}개 중):")
-        for r in s_grade[:20]:
-            excess = r['avg_d5'] - r['avg_mdd']
-            print(f"  {r['stock_name']:<18s} [{r['stock_index']}] best={r['best_combo']:<18s} "
-                  f"D+5={r['avg_d5']:>+7.2f}% 지수={r['avg_mdd']:>+5.2f}% "
-                  f"초과={excess:>+6.2f}%p 승률={r['win_rate_d5']:.0f}% ev={r['total_events']}")
+    # S등급 best combo TOP20
+    s_best = sorted([r for r in best_only if r['grade'] == 'S'], key=lambda x: -x['excess_d5'])
+    if s_best:
+        print(f"\n🏆 S등급 종목 TOP20 ({len(s_best)}개 중):")
+        for r in s_best[:20]:
+            stars = '★★★'
+            print(f"  {stars} {r['stock_name']:<16s} [{r['market']}] {r['combo']:<18s} "
+                  f"D+5={r['avg_d5']:>+7.2f}% {r['market']}대비={r['excess_d5']:>+6.2f}%p "
+                  f"승률={r['win_rate_d5']:.0f}% ({r['combo_count']}회)")
     
-    # C등급 (위험 종목)
-    c_grade = sorted([r for r in results if r['grade'] == 'C'], key=lambda x: x['avg_d5'])
-    if c_grade:
-        print(f"\n⚠️ C등급 종목 ({len(c_grade)}개) — 지수 대비 -7% 이상 하회:")
-        for r in c_grade[:10]:
-            excess = r['avg_d5'] - r['avg_mdd']
-            print(f"  {r['stock_name']:<18s} [{r['stock_index']}] best={r['best_combo']:<18s} "
-                  f"D+5={r['avg_d5']:>+7.2f}% 초과={excess:>+6.2f}%p")
+    # 종목별 combo 수 분포
+    combo_counts = defaultdict(int)
+    for r in results:
+        combo_counts[r['stock_code']] += 1
+    avg_combos = sum(combo_counts.values()) / len(combo_counts) if combo_counts else 0
+    print(f"\n종목당 combo 수: 평균 {avg_combos:.1f}개, 최대 {max(combo_counts.values()) if combo_counts else 0}개")
+    
+    # 샘플 출력 (삼성전자가 있으면)
+    samsung = [r for r in results if r['stock_code'] == '005930']
+    if samsung:
+        print(f"\n📋 삼성전자 상위 combo:")
+        for r in samsung:
+            stars = '★★★' if r['grade'] == 'S' else '★★☆' if r['grade'] == 'A' else '★☆☆' if r['grade'] == 'B' else '☆☆☆'
+            print(f"  #{r['combo_rank']} {stars} {r['combo']:<20s} "
+                  f"D+5={r['avg_d5']:>+7.2f}% 코스피대비={r['excess_d5']:>+6.2f}%p 승률={r['win_rate_d5']:.0f}% ({r['combo_count']}회)")
 
 def save_to_supabase(results):
     print(f"\n💾 STEP 8: Supabase sr_supply_grades 저장...")
