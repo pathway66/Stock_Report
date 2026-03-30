@@ -275,7 +275,7 @@ def analyze(supply_raw, ohlcv_raw, market_raw):
         stock_prices = price_map[code]
         
         combo_returns = defaultdict(lambda: {'d1': [], 'd3': [], 'd5': [], 'd10': []})
-        combo_index_returns = defaultdict(lambda: {'d5': []})  # 지수 수익률도 저장
+        combo_index_returns = defaultdict(lambda: {'d5': [], 'd10': []})
         combo_counts = defaultdict(int)
         
         for dt, buyers in stock_dates.items():
@@ -301,8 +301,9 @@ def analyze(supply_raw, ohlcv_raw, market_raw):
             if not returns:
                 continue
             
-            # 지수 D+5 수익률
+            # 지수 D+5, D+10 수익률
             idx_d5 = calc_index_cumulative(dt, stock_market, 5)
+            idx_d10 = calc_index_cumulative(dt, stock_market, 10)
             
             combo_key = frozenset(buyers)
             combo_counts[combo_key] += 1
@@ -310,6 +311,8 @@ def analyze(supply_raw, ohlcv_raw, market_raw):
                 combo_returns[combo_key][d_label].append(ret)
             if idx_d5 is not None and 'd5' in returns:
                 combo_index_returns[combo_key]['d5'].append(idx_d5)
+            if idx_d10 is not None and 'd10' in returns:
+                combo_index_returns[combo_key]['d10'].append(idx_d10)
         
         # 유효 combo (3회 이상)
         valid_combos = []
@@ -326,10 +329,11 @@ def analyze(supply_raw, ohlcv_raw, market_raw):
             win_d1 = sum(1 for r in rets['d1'] if r > 0) / len(rets['d1']) * 100 if rets['d1'] else 0
             win_d5 = sum(1 for r in rets['d5'] if r > 0) / len(rets['d5']) * 100 if rets['d5'] else 0
             
-            # 지수 D+5 평균
+            # 지수 D+5, D+10 평균
             avg_idx_d5 = sum(idx_rets['d5']) / len(idx_rets['d5']) if idx_rets['d5'] else 0
-            # 초과수익률
+            avg_idx_d10 = sum(idx_rets['d10']) / len(idx_rets['d10']) if idx_rets['d10'] else 0
             excess_d5 = avg_d5 - avg_idx_d5
+            excess_d10 = avg_d10 - avg_idx_d10
             
             valid_combos.append({
                 'combo_key': combo_key,
@@ -342,20 +346,22 @@ def analyze(supply_raw, ohlcv_raw, market_raw):
                 'win_rate_d1': round(win_d1, 4),
                 'win_rate_d5': round(win_d5, 4),
                 'avg_idx_d5': round(avg_idx_d5, 4),
+                'avg_idx_d10': round(avg_idx_d10, 4),
                 'excess_d5': round(excess_d5, 4),
+                'excess_d10': round(excess_d10, 4),
             })
         
         if not valid_combos:
             skipped += 1
             continue
         
-        # 초과수익률 기준 정렬 → 상위 5개
-        valid_combos.sort(key=lambda x: -x['excess_d5'])
+        # ★ D+10 초과수익률 기준 정렬 → 상위 5개
+        valid_combos.sort(key=lambda x: -x['excess_d10'])
         top5 = valid_combos[:5]
         total_valid = len(valid_combos)
         
         for rank, vc in enumerate(top5, 1):
-            ex = vc['excess_d5']
+            ex = vc['excess_d10']
             grade = 'S' if ex > 0 else 'A' if ex >= -2 else 'B' if ex >= -7 else 'C'
             
             results.append({
@@ -369,8 +375,8 @@ def analyze(supply_raw, ohlcv_raw, market_raw):
                 'avg_d3': vc['avg_d3'],
                 'avg_d5': vc['avg_d5'],
                 'avg_d10': vc['avg_d10'],
-                'index_d5': vc['avg_idx_d5'],
-                'excess_d5': vc['excess_d5'],
+                'index_d5': vc['avg_idx_d10'],
+                'excess_d5': vc['excess_d10'],
                 'win_rate_d5': vc['win_rate_d5'],
                 'combo_count': vc['count'],
                 'is_best': rank == 1,
@@ -381,7 +387,6 @@ def analyze(supply_raw, ohlcv_raw, market_raw):
                 'backtest_date': datetime.now().strftime('%Y-%m-%d'),
             })
         
-        analyzed += 1
         analyzed += 1
     
     print(f"   분석 완료: {analyzed}종목 / 스킵: {skipped}종목")
@@ -429,7 +434,7 @@ def print_summary(results):
         for r in s_best[:20]:
             stars = '★★★'
             print(f"  {stars} {r['stock_name']:<16s} [{r['market']}] {r['combo']:<18s} "
-                  f"D+5={r['avg_d5']:>+7.2f}% {r['market']}대비={r['excess_d5']:>+6.2f}%p "
+                  f"D+10={r['avg_d10']:>+7.2f}% {r['market']}대비10일={r['excess_d5']:>+6.2f}%p "
                   f"승률={r['win_rate_d5']:.0f}% ({r['combo_count']}회)")
     
     # 종목별 combo 수 분포
@@ -446,7 +451,7 @@ def print_summary(results):
         for r in samsung:
             stars = '★★★' if r['grade'] == 'S' else '★★☆' if r['grade'] == 'A' else '★☆☆' if r['grade'] == 'B' else '☆☆☆'
             print(f"  #{r['combo_rank']} {stars} {r['combo']:<20s} "
-                  f"D+5={r['avg_d5']:>+7.2f}% 코스피대비={r['excess_d5']:>+6.2f}%p 승률={r['win_rate_d5']:.0f}% ({r['combo_count']}회)")
+                  f"D+10={r['avg_d10']:>+7.2f}% 코스피대비10일={r['excess_d5']:>+6.2f}%p 승률={r['win_rate_d5']:.0f}% ({r['combo_count']}회)")
 
 def save_to_supabase(results):
     print(f"\n💾 STEP 8: Supabase sr_supply_grades 저장...")
