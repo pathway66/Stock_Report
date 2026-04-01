@@ -357,10 +357,17 @@ def main():
     if updates:
         last_update_id = updates[-1]['update_id'] + 1
 
-    timeout = 3600  # 60분 대기
+    timeout = 3600  # 60분 대기 → 무제한 대기 (리마인더용 기준)
     start_time = time.time()
+    last_reminder = start_time
 
-    while time.time() - start_time < timeout:
+    while True:
+        # 30분마다 리마인더
+        if time.time() - last_reminder >= 1800:
+            elapsed = int((time.time() - start_time) / 60)
+            send_telegram(f'[⏰] TOP3 선정 대기 중... ({elapsed}분 경과)\n번호 입력 또는 /skip 입력하세요')
+            last_reminder = time.time()
+
         updates = get_updates(offset=last_update_id)
         for update in updates:
             last_update_id = update['update_id'] + 1
@@ -395,7 +402,7 @@ def main():
                 send_telegram(confirm_msg)
 
                 # 확인 대기
-                while time.time() - start_time < timeout:
+                while True:
                     confirms = get_updates(offset=last_update_id)
                     for conf in confirms:
                         last_update_id = conf['update_id'] + 1
@@ -442,8 +449,9 @@ def main():
 
         time.sleep(2)
 
-    send_telegram('[!] 10분 타임아웃. 수동으로 다시 실행하세요.')
-    print('[!] 타임아웃')
+    # 무제한 대기이므로 여기 도달하지 않음
+    send_telegram('[!] 대기 종료. 수동으로 다시 실행하세요.')
+    print('[!] 대기 종료')
 
 if __name__ == '__main__':
     main()
