@@ -1,7 +1,7 @@
 import requests, json, os, sys, time
 from dotenv import load_dotenv
 load_dotenv()
-from market_indicators import get_market_indicators, format_indicators_telegram
+from market_indicators import get_market_indicators
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
@@ -155,10 +155,10 @@ def generate_ai_analysis(stock, supply_data, market_data):
             },
             json={
                 'model': 'claude-sonnet-4-20250514',
-                'max_tokens': 1500,
+                'max_tokens': 2000,
                 'messages': [{'role': 'user', 'content': prompt}]
             },
-            timeout=90
+            timeout=120
         )
         if r.status_code == 200:
             return r.json()['content'][0]['text']
@@ -184,10 +184,14 @@ def save_top3(date, picks, scores, market_dict):
             'expires_date': None
         }
         requests.post(
-            f'{SUPABASE_URL}/rest/v1/top3_history',
-            headers={**sb_headers, 'Prefer': 'return=representation'},
+            f'{SUPABASE_URL}/rest/v1/top3_history?on_conflict=date,rank',
+            headers={**sb_headers, 'Prefer': 'resolution=merge-duplicates,return=representation'},
             json=record
         )
+        if r.status_code in [200, 201]:
+            print(f'  [OK] top3 rank{rank}: {s["stock_name"]}')
+        else:
+            print(f'  [W] top3 rank{rank} 저장 실패: {r.status_code} {r.text[:100]}')
     return True
 
 def save_blog_post(date, scores, picks, market_dict, d_count, supply_data, prev_perf, indicators=None):
@@ -357,10 +361,16 @@ def main():
     if updates:
         last_update_id = updates[-1]['update_id'] + 1
 
-    timeout = 3600  # 60분 대기
     start_time = time.time()
+    last_reminder = start_time
 
-    while time.time() - start_time < timeout:
+    while True:
+        # 30분마다 리마인더
+        if time.time() - last_reminder >= 1800:
+            elapsed = int((time.time() - start_time) / 60)
+            send_telegram(f'[⏰] TOP3 선정 대기 중... ({elapsed}분 경과)\n번호 입력 또는 /skip 입력하세요')
+            last_reminder = time.time()
+
         updates = get_updates(offset=last_update_id)
         for update in updates:
             last_update_id = update['update_id'] + 1
@@ -395,7 +405,7 @@ def main():
                 send_telegram(confirm_msg)
 
                 # 확인 대기
-                while time.time() - start_time < timeout:
+                while True:
                     confirms = get_updates(offset=last_update_id)
                     for conf in confirms:
                         last_update_id = conf['update_id'] + 1
@@ -442,8 +452,8 @@ def main():
 
         time.sleep(2)
 
-    send_telegram('[!] 10분 타임아웃. 수동으로 다시 실행하세요.')
-    print('[!] 타임아웃')
+    send_telegram('[!] 대기 종료. 수동으로 다시 실행하세요.')
+    print('[!] 대기 종료')
 
 if __name__ == '__main__':
     main()
