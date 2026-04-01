@@ -46,6 +46,13 @@ def main():
         print("[X] 분석 실패.")
         return
 
+    # STEP 2.5: OHLCV 수집 (코팔/닥사 456종목, 최근 10일)
+    print("\n[>] STEP 2.5: OHLCV 일봉 수집 (코팔/닥사)")
+    print("-" * 50)
+    date_formatted = f"{date_arg[:4]}-{date_arg[4:6]}-{date_arg[6:8]}" if len(date_arg) == 8 else date_arg
+    if not run("collect_ohlcv.py", [date_formatted]):
+        print("[W] OHLCV 수집 실패. 계속 진행합니다.")
+
     # STEP 3: 텔레그램 봇 (TOP3 선정)
     print("\n[>] STEP 3: 텔레그램 봇 (TOP3 선정 대기)")
     print("-" * 50)

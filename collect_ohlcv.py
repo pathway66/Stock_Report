@@ -1,6 +1,7 @@
 """
-일봉 OHLCV 데이터 수집기
-- FinanceDataReader로 TOP25 종목의 200일치 일봉 데이터 수집
+일봉 OHLCV 데이터 수집기 v2
+- 코팔/닥사 전체 종목의 일봉 데이터 수집 (KOSPI 8천억+, KOSDAQ 4천억+)
+- FinanceDataReader 사용
 - Supabase daily_ohlcv 테이블에 upsert
 - run_daily.py에서 호출하거나 단독 실행 가능
 """
@@ -20,16 +21,35 @@ sb_headers = {
     'Prefer': 'return=minimal'
 }
 
-def get_top25_codes(date):
-    """Supabase에서 해당 날짜 TOP25 종목코드 가져오기"""
-    r = requests.get(
-        f'{SUPABASE_URL}/rest/v1/analysis_scores?date=eq.{date}&order=final_score.desc&limit=25',
-        headers={'apikey': SUPABASE_KEY, 'Authorization': f'Bearer {SUPABASE_KEY}'}
-    )
-    scores = r.json()
-    if not scores:
-        return []
-    return [(s['stock_code'], s['stock_name']) for s in scores]
+def get_target_stocks(date):
+    """코팔/닥사 기준 전체 종목 가져오기 (KOSPI 8천억+, KOSDAQ 4천억+)"""
+    headers = {'apikey': SUPABASE_KEY, 'Authorization': f'Bearer {SUPABASE_KEY}'}
+    stocks = []
+    offset = 0
+    while True:
+        r = requests.get(
+            f'{SUPABASE_URL}/rest/v1/daily_market?date=eq.{date}'
+            f'&select=stock_code,stock_name,market,market_cap'
+            f'&order=market_cap.desc&limit=1000&offset={offset}',
+            headers=headers
+        )
+        data = r.json()
+        if not data:
+            break
+        stocks.extend(data)
+        if len(data) < 1000:
+            break
+        offset += 1000
+
+    filtered = []
+    for s in stocks:
+        market = s.get('market', '')
+        mktcap = s.get('market_cap', 0) or 0
+        if market == 'KOSPI' and mktcap >= 800000000000:
+            filtered.append((s['stock_code'], s['stock_name']))
+        elif market == 'KOSDAQ' and mktcap >= 400000000000:
+            filtered.append((s['stock_code'], s['stock_name']))
+    return filtered
 
 def collect_ohlcv(stock_code, stock_name, days=200):
     """FinanceDataReader로 일봉 데이터 수집"""
@@ -93,7 +113,7 @@ def upsert_ohlcv(records):
     for i in range(0, len(records), 50):
         batch = records[i:i+50]
         r = requests.post(
-            f'{SUPABASE_URL}/rest/v1/daily_ohlcv',
+            f'{SUPABASE_URL}/rest/v1/daily_ohlcv?on_conflict=stock_code,date',
             headers={**sb_headers, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
             json=batch
         )
@@ -113,24 +133,29 @@ def main():
     print(f'[*] 일봉 OHLCV 수집기 ({date})')
     print('=' * 50)
     
-    # TOP25 종목 가져오기
-    stocks = get_top25_codes(date)
+    # 코팔/닥사 전체 종목 가져오기
+    stocks = get_target_stocks(date)
     if not stocks:
-        print('[!] TOP25 종목이 없습니다. 분석 데이터를 먼저 실행하세요.')
+        print('[!] 코팔/닥사 종목이 없습니다. daily_market 데이터를 먼저 확인하세요.')
         return
     
-    print(f'  수집 대상: {len(stocks)}종목, 200일치 일봉')
+    # 일일 수집: 최근 10일만 (빠른 실행), 전체 수집: --full 옵션
+    days = 10
+    if '--full' in sys.argv:
+        days = 500
+        print(f'  [!] 전체 수집 모드: {days}일치')
+    
+    print(f'  수집 대상: {len(stocks)}종목, {days}일치 일봉')
     print('-' * 50)
     
     total_records = 0
     for i, (code, name) in enumerate(stocks, 1):
-        records = collect_ohlcv(code, name)
+        records = collect_ohlcv(code, name, days=days)
         if records:
             saved = upsert_ohlcv(records)
             total_records += saved
-            print(f'  [{i}/{len(stocks)}] {name}({code}): {len(records)}일 -> {saved}건 저장')
-        else:
-            print(f'  [{i}/{len(stocks)}] {name}({code}): 데이터 없음')
+            if i % 50 == 0 or i == len(stocks):
+                print(f'  [{i}/{len(stocks)}] {name}({code}): {len(records)}일 -> {saved}건 저장')
         time.sleep(0.3)  # API 부하 방지
     
     print('=' * 50)
