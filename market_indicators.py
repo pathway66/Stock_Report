@@ -21,13 +21,8 @@ def get_market_indicators(date_str=None):
         ('KOSPI', 'KS11', 'index'),
         ('KOSDAQ', 'KQ11', 'index'),
         ('USD/KRW', 'USD/KRW', 'fx'),
-        ('WTI', 'FRED:DCOILWTICO', 'commodity'),
-        ('S&P500', 'S&P500', 'index'),
-        ('NASDAQ', 'IXIC', 'index'),
-        ('DOW', 'DJI', 'index'),
-        ('Russell2000', 'RUT', 'index'),
-        ('VIX', 'VIX', 'volatility'),
         ('US10Y', 'FRED:DGS10', 'bond'),
+        ('WTI', 'FRED:DCOILWTICO', 'commodity'),
     ]
     
     results = []
@@ -133,6 +128,40 @@ def get_market_indicators(date_str=None):
             'category': 'crypto',
             'note': '수집실패'
         })
+
+    # 미국 지표 - yfinance (순서: NASDAQ, S&P500, Russell2000, DOW, VIX)
+    us_tickers = [
+        ('NASDAQ', '^IXIC', 'index'),
+        ('S&P500', '^GSPC', 'index'),
+        ('Russell2000', '^RUT', 'index'),
+        ('DOW', '^DJI', 'index'),
+        ('VIX', '^VIX', 'volatility'),
+    ]
+    for name, symbol, category in us_tickers:
+        try:
+            t = yf.Ticker(symbol)
+            h = t.history(period='5d')
+            if len(h) >= 2:
+                close = float(h.iloc[-1]['Close'])
+                prev = float(h.iloc[-2]['Close'])
+                chg = ((close - prev) / prev * 100) if prev != 0 else 0
+                if category == 'volatility':
+                    close_str = f'{close:.2f}'
+                else:
+                    close_str = f'{close:,.2f}'
+                results.append({
+                    'name': name,
+                    'close': close_str,
+                    'close_raw': round(close, 2),
+                    'change_pct': round(chg, 2),
+                    'category': category,
+                    'note': ''
+                })
+            else:
+                results.append({'name': name, 'close': '-', 'close_raw': 0, 'change_pct': 0, 'category': category, 'note': ''})
+        except Exception as e:
+            print(f'  [!] {name} 수집 실패: {e}')
+            results.append({'name': name, 'close': '-', 'close_raw': 0, 'change_pct': 0, 'category': category, 'note': '수집실패'})
 
     # CNN Fear & Greed Index - 비고란에 CNN 링크
     results.append({
