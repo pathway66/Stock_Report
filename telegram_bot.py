@@ -183,11 +183,15 @@ def save_top3(date, picks, scores, market_dict):
             'selected_by': 'shawn',
             'expires_date': None
         }
-        requests.post(
+        r = requests.post(
             f'{SUPABASE_URL}/rest/v1/top3_history',
-            headers={**sb_headers, 'Prefer': 'return=representation'},
+            headers={**sb_headers, 'Prefer': 'resolution=merge-duplicates,return=representation'},
             json=record
         )
+        if r.status_code in [200, 201]:
+            print(f'  [OK] top3 rank{rank}: {s["stock_name"]}')
+        else:
+            print(f'  [W] top3 rank{rank} 저장 실패: {r.status_code} {r.text[:100]}')
     return True
 
 def save_blog_post(date, scores, picks, market_dict, d_count, supply_data, prev_perf, indicators=None):
@@ -357,17 +361,10 @@ def main():
     if updates:
         last_update_id = updates[-1]['update_id'] + 1
 
-    timeout = 3600  # 60분 대기 → 무제한 대기 (리마인더용 기준)
+    timeout = 3600  # 60분 대기
     start_time = time.time()
-    last_reminder = start_time
 
-    while True:
-        # 30분마다 리마인더
-        if time.time() - last_reminder >= 1800:
-            elapsed = int((time.time() - start_time) / 60)
-            send_telegram(f'[⏰] TOP3 선정 대기 중... ({elapsed}분 경과)\n번호 입력 또는 /skip 입력하세요')
-            last_reminder = time.time()
-
+    while time.time() - start_time < timeout:
         updates = get_updates(offset=last_update_id)
         for update in updates:
             last_update_id = update['update_id'] + 1
@@ -402,7 +399,7 @@ def main():
                 send_telegram(confirm_msg)
 
                 # 확인 대기
-                while True:
+                while time.time() - start_time < timeout:
                     confirms = get_updates(offset=last_update_id)
                     for conf in confirms:
                         last_update_id = conf['update_id'] + 1
@@ -449,9 +446,8 @@ def main():
 
         time.sleep(2)
 
-    # 무제한 대기이므로 여기 도달하지 않음
-    send_telegram('[!] 대기 종료. 수동으로 다시 실행하세요.')
-    print('[!] 대기 종료')
+    send_telegram('[!] 10분 타임아웃. 수동으로 다시 실행하세요.')
+    print('[!] 타임아웃')
 
 if __name__ == '__main__':
     main()
