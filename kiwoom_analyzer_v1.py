@@ -1,7 +1,8 @@
 """
-[*] AI+패스웨이 분석 엔진 v1.0.1
+[*] AI+패스웨이 분석 엔진 v1.1.0
 ================================
 Supabase DB에서 수급+시총 데이터를 읽어 v3 점수 계산 후 DB에 저장
+v1.1.0: 코팔/닥사 시총 필터 추가 (KOSPI 8천억+, KOSDAQ 4천억+)
 v1.0.1: 페이징 수정 + upsert on_conflict 수정
 
 사용법:
@@ -169,6 +170,16 @@ def analyze(target_date):
         amount = row.get('amount', 0) or 0
 
         if is_etf(name):
+            continue
+        # 코팔/닥사 필터 (KOSPI 8천억+, KOSDAQ 4천억+)
+        m = mkt.get(code, {})
+        market = m.get('market', '')
+        mktcap = m.get('mktcap', 0)
+        if market == 'KOSPI' and mktcap < 800000000000:
+            continue
+        if market == 'KOSDAQ' and mktcap < 400000000000:
+            continue
+        if not market:
             continue
         stock_names[code] = name
 
@@ -344,7 +355,7 @@ def main():
         target_date = datetime.now().strftime("%Y%m%d")
 
     print("=" * 60)
-    print("[*] AI+패스웨이 분석 엔진 v1.0.1")
+    print("[*] AI+패스웨이 분석 엔진 v1.1.0")
     print(f"   날짜: {target_date}")
     print(f"   데이터소스: Supabase DB")
     print("=" * 60)
