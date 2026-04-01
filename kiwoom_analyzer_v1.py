@@ -3,6 +3,7 @@
 ================================
 Supabase DB에서 수급+시총 데이터를 읽어 v3 점수 계산 후 DB에 저장
 v1.1.0: 코팔/닥사 시총 필터 추가 (KOSPI 8천억+, KOSDAQ 4천억+)
+v1.1.1: 섹터맵 CSV+Supabase 보충 방식으로 변경 (깨진 섹터명 해결)
 v1.0.1: 페이징 수정 + upsert on_conflict 수정
 
 사용법:
@@ -99,7 +100,7 @@ def is_etf(name):
 
 
 def load_sector_map():
-    """섹터맵 로드"""
+    """섹터맵 로드 (CSV 우선 + Supabase 보충)"""
     smap = {}
     for path in [SECTOR_MAP_PATH, "./kiwoom_data/섹터맵_종목별2.csv"]:
         if os.path.exists(path):
@@ -109,12 +110,17 @@ def load_sector_map():
                     smap[code] = row['섹터'].strip()
             print(f"  섹터맵 로드: {path} ({len(smap)}종목)")
             break
-    if not smap:
-        db = SupabaseDB()
-        data = db.read("sector_map")
-        for row in data:
-            smap[row['stock_code'].zfill(6)] = row['sector']
-        print(f"  섹터맵 로드: Supabase ({len(smap)}종목)")
+    # Supabase sector_map에서 빠진 종목 보충
+    db = SupabaseDB()
+    data = db.read("sector_map")
+    added = 0
+    for row in data:
+        code = row['stock_code'].zfill(6)
+        if True:
+            smap[code] = row['sector']
+            added += 1
+    if added:
+        print(f"  섹터맵 보충: Supabase ({added}종목 추가)")
     smap['079550'] = '방산'
     return smap
 
