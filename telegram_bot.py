@@ -1,7 +1,7 @@
 import requests, json, os, sys, time
 from dotenv import load_dotenv
 load_dotenv()
-from market_indicators import get_market_indicators
+from market_indicators import get_market_indicators, format_indicators_telegram
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
@@ -155,10 +155,10 @@ def generate_ai_analysis(stock, supply_data, market_data):
             },
             json={
                 'model': 'claude-sonnet-4-20250514',
-                'max_tokens': 2000,
+                'max_tokens': 1500,
                 'messages': [{'role': 'user', 'content': prompt}]
             },
-            timeout=120
+            timeout=90
         )
         if r.status_code == 200:
             return r.json()['content'][0]['text']
@@ -183,15 +183,11 @@ def save_top3(date, picks, scores, market_dict):
             'selected_by': 'shawn',
             'expires_date': None
         }
-        r = requests.post(
-            f'{SUPABASE_URL}/rest/v1/top3_history?on_conflict=date,rank',
-            headers={**sb_headers, 'Prefer': 'resolution=merge-duplicates,return=representation'},
+        requests.post(
+            f'{SUPABASE_URL}/rest/v1/top3_history',
+            headers={**sb_headers, 'Prefer': 'return=representation'},
             json=record
         )
-        if r.status_code in [200, 201]:
-            print(f'  [OK] top3 rank{rank}: {s["stock_name"]}')
-        else:
-            print(f'  [W] top3 rank{rank} 저장 실패: {r.status_code} {r.text[:100]}')
     return True
 
 def save_blog_post(date, scores, picks, market_dict, d_count, supply_data, prev_perf, indicators=None):
