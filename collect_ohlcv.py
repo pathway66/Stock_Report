@@ -124,7 +124,8 @@ def upsert_ohlcv(records):
     return total
 
 def main():
-    date = sys.argv[1] if len(sys.argv) > 1 else None
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    date = args[0] if args else None
     if not date:
         date = datetime.now().strftime('%Y-%m-%d')
     if len(date) == 8:

@@ -183,7 +183,7 @@ def save_top3(date, picks, scores, market_dict):
             'selected_by': 'shawn',
             'expires_date': None
         }
-        requests.post(
+        r = requests.post(
             f'{SUPABASE_URL}/rest/v1/top3_history?on_conflict=date,rank',
             headers={**sb_headers, 'Prefer': 'resolution=merge-duplicates,return=representation'},
             json=record

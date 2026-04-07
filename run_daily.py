@@ -53,6 +53,24 @@ def main():
     if not run("collect_ohlcv.py", [date_formatted]):
         print("[W] OHLCV 수집 실패. 계속 진행합니다.")
 
+    # STEP 2.7: 주도세력 매수선/매도선 계산
+    print("\n[>] STEP 2.7: 주도세력 SB/SS 라인 계산")
+    print("-" * 50)
+    if not run("calc_force_lines.py", [date_arg]):
+        print("[W] SB/SS 라인 계산 실패. 계속 진행합니다.")
+
+    # STEP 2.8: 지수 데이터 수집 (KOSPI/KOSDAQ 일봉)
+    print("\n[>] STEP 2.8: 지수 데이터 수집 (KOSPI/KOSDAQ)")
+    print("-" * 50)
+    if not run("collect_index_data.py", [date_arg]):
+        print("[W] 지수 데이터 수집 실패. 계속 진행합니다.")
+
+    # STEP 2.9: RS Leaders 계산 (RS First, 수급 Alpha)
+    print("\n[>] STEP 2.9: RS Leaders 계산")
+    print("-" * 50)
+    if not run("calculate_rs_leaders.py", [date_arg]):
+        print("[W] RS Leaders 계산 실패. 계속 진행합니다.")
+
     # STEP 3: 텔레그램 봇 (TOP3 선정)
     print("\n[>] STEP 3: 텔레그램 봇 (TOP3 선정 대기)")
     print("-" * 50)
@@ -64,6 +82,7 @@ def main():
     print(f"[!] 전체 완료! 총 소요시간: {elapsed:.0f}초 ({elapsed/60:.1f}분)")
     print(f"\n[F] CSV 파일: ./kiwoom_data/")
     print(f"[DB] Supabase DB: daily_supply + daily_market + analysis_scores")
+    print(f"[DB] Supabase DB: daily_index + daily_index_returns + rs_leaders")
     print(f"\n[!] 이제 Supabase 대시보드에서 분석 결과를 확인하세요!")
     print("=" * 60)
 
