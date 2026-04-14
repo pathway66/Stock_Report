@@ -278,6 +278,102 @@ def get_stock_returns(db, target_date, universe):
 
 
 # ============================================================
+# STEP 2-B: 눌림목 지표 계산 (drawdown_20d, vol_ratio)
+# ============================================================
+def get_pullback_indicators(db, target_date, universe):
+    """
+    눌림목 반등 스캐너용 지표 계산:
+    - drawdown_20d: 최근 20거래일 고가 대비 오늘 종가 하락률 (%)
+    - vol_ratio: 오늘 거래량 / 최근 20일 평균 거래량
+    """
+    date_obj = datetime.strptime(target_date, "%Y%m%d").strftime("%Y-%m-%d")
+    print(f"  [>] 눌림목 지표 계산 (drawdown_20d, vol_ratio)...")
+
+    # 최근 21거래일 목록 (오늘 포함)
+    date_params = (
+        f"date=lte.{date_obj}"
+        f"&select=date"
+        f"&order=date.desc"
+        f"&limit=21"
+    )
+    date_rows = db.query_single("daily_index", date_params)
+    trade_dates = sorted(set(r['date'] for r in date_rows), reverse=True)
+
+    if len(trade_dates) < 2:
+        print(f"    [W] 거래일 부족")
+        return {}
+
+    today_date = trade_dates[0]
+    past_20_dates = trade_dates[:21]  # 오늘 포함 21일 (오늘 + 과거 20일)
+
+    # 최근 21일 OHLCV 데이터 조회
+    date_list = ",".join(f'"{d}"' for d in past_20_dates)
+    # Supabase에서 날짜 목록으로 필터링
+    print(f"    최근 {len(past_20_dates)}거래일 OHLCV 조회...", end=" ", flush=True)
+
+    all_ohlcv = []
+    for d in past_20_dates:
+        params = f"date=eq.{d}&select=stock_code,date,high,close,volume"
+        rows = db.query("daily_ohlcv", params)
+        all_ohlcv.extend(rows)
+
+    print(f"{len(all_ohlcv)}건")
+
+    # 종목별로 정리
+    from collections import defaultdict
+    stock_data = defaultdict(list)
+    for r in all_ohlcv:
+        code = r.get('stock_code', '')
+        if code in universe:
+            stock_data[code].append({
+                'date': r['date'],
+                'high': float(r.get('high', 0) or 0),
+                'close': float(r.get('close', 0) or 0),
+                'volume': int(r.get('volume', 0) or 0),
+            })
+
+    # 계산
+    pullback = {}  # {stock_code: {'drawdown_20d': ..., 'vol_ratio': ...}}
+
+    for code, days in stock_data.items():
+        # 날짜 정렬 (최신→과거)
+        days.sort(key=lambda x: x['date'], reverse=True)
+
+        if len(days) < 2:
+            continue
+
+        today = days[0]
+        today_close = today['close']
+        today_vol = today['volume']
+
+        if today_close <= 0:
+            continue
+
+        # drawdown_20d: 최근 20일 고가 중 최고 대비 오늘 종가 하락률
+        highs = [d['high'] for d in days if d['high'] > 0]
+        if highs:
+            max_high = max(highs)
+            drawdown = (today_close / max_high - 1) * 100 if max_high > 0 else 0
+        else:
+            drawdown = 0
+
+        # vol_ratio: 오늘 거래량 / 과거 20일 평균 거래량
+        past_vols = [d['volume'] for d in days[1:] if d['volume'] > 0]
+        if past_vols and today_vol > 0:
+            avg_vol = sum(past_vols) / len(past_vols)
+            vol_ratio = today_vol / avg_vol if avg_vol > 0 else 0
+        else:
+            vol_ratio = 0
+
+        pullback[code] = {
+            'drawdown_20d': round(drawdown, 2),
+            'vol_ratio': round(vol_ratio, 2),
+        }
+
+    print(f"    눌림목 지표 계산 완료: {len(pullback)}종목")
+    return pullback
+
+
 # STEP 3: 지수 수익률 가져오기
 # ============================================================
 def get_index_returns(db, target_date):
@@ -554,6 +650,10 @@ def save_rs_leaders(db, results):
             # 슈퍼리더
             'is_super_leader': data.get('is_super_leader', False),
             'super_type': data.get('super_type'),
+
+            # 눌림목 지표
+            'drawdown_20d': data.get('drawdown_20d'),
+            'vol_ratio': data.get('vol_ratio'),
         }
 
         # 기간별 데이터
@@ -657,6 +757,12 @@ def main():
         print("[X] 종목 수익률 없음. 종료.")
         return
 
+    # STEP 2-B: 눌림목 지표 계산
+    print(f"\n{'-'*50}")
+    print(f"[>] STEP 2-B: 눌림목 지표 (drawdown_20d, vol_ratio)")
+    print(f"{'-'*50}")
+    pullback_indicators = get_pullback_indicators(db, target_date, universe)
+
     # STEP 3: 지수 수익률 가져오기
     print(f"\n{'-'*50}")
     print(f"[>] STEP 3: 지수 수익률 조회")
@@ -686,6 +792,22 @@ def main():
     print(f"[>] STEP 6: 수급 콤보 크로스 + 슈퍼리더")
     print(f"{'-'*50}")
     results = apply_combo_and_super(db, results, target_date)
+
+    # STEP 6-B: 눌림목 지표 병합
+    print(f"\n{'-'*50}")
+    print(f"[>] STEP 6-B: 눌림목 지표 병합")
+    print(f"{'-'*50}")
+    merged = 0
+    for code, data in results.items():
+        pb = pullback_indicators.get(code)
+        if pb:
+            data['drawdown_20d'] = pb['drawdown_20d']
+            data['vol_ratio'] = pb['vol_ratio']
+            merged += 1
+        else:
+            data['drawdown_20d'] = None
+            data['vol_ratio'] = None
+    print(f"    눌림목 지표 병합: {merged}종목")
 
     # STEP 7: DB 저장
     print(f"\n{'-'*50}")
