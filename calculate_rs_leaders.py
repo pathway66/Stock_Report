@@ -135,19 +135,37 @@ class SupabaseDB:
 # ============================================================
 def get_universe(db, target_date):
     """
-    daily_market에서 시총 기준 충족 종목 추출
+    시총 기준 충족 종목 추출 (daily_market → fallback daily_supply_v2)
     KOSPI: 시총 8,000억+  /  KOSDAQ: 시총 4,000억+
     """
     date_obj = datetime.strptime(target_date, "%Y%m%d").strftime("%Y-%m-%d")
     print(f"  [>] 유니버스 필터링 ({date_obj})...")
 
-    # 해당 날짜 시총 데이터 조회
+    # 1차: daily_market 조회
     params = (
         f"date=eq.{date_obj}"
         f"&select=stock_code,stock_name,market,market_cap"
         f"&order=market_cap.desc"
     )
     rows = db.query("daily_market", params)
+
+    # 2차: fallback → daily_supply_v2에서 시총 추출 (중복 제거)
+    if not rows:
+        print(f"    [i] daily_market 없음 -> daily_supply_v2 fallback")
+        params2 = (
+            f"date=eq.{date_obj}"
+            f"&select=stock_code,stock_name,market,market_cap"
+            f"&market_cap=gt.0"
+            f"&order=market_cap.desc"
+        )
+        raw = db.query("daily_supply_v2", params2)
+        seen = set()
+        rows = []
+        for r in (raw or []):
+            code = r.get('stock_code', '')
+            if code not in seen:
+                seen.add(code)
+                rows.append(r)
 
     if not rows:
         print(f"    [W] {date_obj} 시총 데이터 없음")
@@ -577,12 +595,12 @@ def apply_combo_and_super(db, results, target_date):
             super_count += 1
 
     print(f"    수급 콤보 매칭: {combo_matched}종목")
-    print(f"    🌟 슈퍼리더 발견: {super_count}종목")
+    print(f"    [*] 슈퍼리더 발견: {super_count}종목")
 
     # 슈퍼리더 상세 출력
     if super_count > 0:
         print(f"\n    {'='*55}")
-        print(f"    🌟 슈퍼리더 목록")
+        print(f"    [*] 슈퍼리더 목록")
         print(f"    {'='*55}")
         for code, data in results.items():
             if data.get('is_super_leader'):
@@ -708,7 +726,7 @@ def print_summary(results):
             pctl = data.get('pctl_20d')
             rs_type = data.get('rs_type_20d', '')
             combo = data.get('combo_grade', '') or '-'
-            super_mark = '🌟' if data.get('is_super_leader') else '  '
+            super_mark = '[*]' if data.get('is_super_leader') else '  '
 
             print(f"    {i:>2} {code:>8} {name:<12} "
                   f"{ret:>7.2f}% {exc:>7.2f}% {pctl:>7.1f}% "
@@ -829,7 +847,7 @@ def main():
     # 슈퍼리더 카운트
     super_count = sum(1 for v in results.values() if v.get('is_super_leader'))
     if super_count:
-        print(f"   🌟 슈퍼리더: {super_count}종목")
+        print(f"   [*] 슈퍼리더: {super_count}종목")
     print("=" * 60)
 
     return results

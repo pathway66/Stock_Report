@@ -135,14 +135,28 @@ def analyze(target_date):
 
     db = SupabaseDB()
 
-    supply_data = db.read("daily_supply", f"date=eq.{date_str}")
+    # daily_supply_v2에서 수급 데이터 (v2: 13주체 + OHLCV + 시총 통합)
+    supply_data = db.read("daily_supply_v2", f"date=eq.{date_str}")
+    if not supply_data:
+        # fallback: 구버전 테이블
+        supply_data = db.read("daily_supply", f"date=eq.{date_str}")
     print(f"  수급 데이터: {len(supply_data)}건")
 
     if not supply_data:
         print("  [X] 수급 데이터가 없습니다. 먼저 kiwoom_collector_v3.py를 실행하세요.")
         return
 
+    # daily_market에서 시총 (collector v3 STEP2에서 저장)
     market_data = db.read("daily_market", f"date=eq.{date_str}")
+    if not market_data:
+        # fallback: daily_supply_v2에서 시총 추출 (중복 제거)
+        seen = set()
+        market_data = []
+        for r in supply_data:
+            code = r.get('stock_code', '')
+            if code not in seen and r.get('market_cap', 0):
+                seen.add(code)
+                market_data.append(r)
     print(f"  시총 데이터: {len(market_data)}건")
 
     smap = load_sector_map()
