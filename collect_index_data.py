@@ -281,14 +281,14 @@ def collect_index_daily(api, db, base_date):
 
             row = {
                 "date": fmt_date,
-                "index_code": index_name,
-                "open": open_val if open_val else None,
-                "high": high_val if high_val else None,
-                "low": low_val if low_val else None,
-                "close": close_val,
-                "volume": volume_val if volume_val else None,
-                "trade_value": trade_value if trade_value else None,
-                "change_pct": None,  # 전일 종가 대비 등락률은 수익률 계산 단계에서 채움
+                "market": index_name,      # index_supply 스키마: market 컬럼
+                "subject": "지수",          # 지수 OHLCV는 subject='지수'로 저장
+                "idx_open": open_val if open_val else None,
+                "idx_high": high_val if high_val else None,
+                "idx_low": low_val if low_val else None,
+                "idx_close": close_val,
+                "idx_volume": volume_val if volume_val else None,
+                "idx_trade_value": trade_value if trade_value else None,
             }
             db_rows.append(row)
             count += 1
@@ -303,10 +303,10 @@ def collect_index_daily(api, db, base_date):
 
         time.sleep(0.5)
 
-    # DB 저장
+    # DB 저장 (index_supply 테이블 - daily_index는 뷰)
     if db and db_rows:
-        db.upsert("daily_index", db_rows)
-        print(f"  [DB] daily_index 저장: {len(db_rows)}건")
+        db.upsert("index_supply", db_rows, on_conflict="date,market,subject")
+        print(f"  [DB] index_supply 저장: {len(db_rows)}건")
 
     return db_rows
 

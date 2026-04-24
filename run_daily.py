@@ -16,8 +16,29 @@
 
 import subprocess
 import sys
+import os
 import time
 from datetime import datetime
+
+
+# 로그 파일 (스케줄러 실행 시 콘솔 없으므로 파일에 기록)
+LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
+
+class TeeLogger:
+    """stdout을 파일과 콘솔 양쪽에 기록"""
+    def __init__(self, log_path):
+        self.log = open(log_path, 'w', encoding='utf-8')
+        self.stdout = sys.stdout
+    def write(self, msg):
+        self.log.write(msg); self.log.flush()
+        try: self.stdout.write(msg)
+        except: pass
+    def flush(self):
+        self.log.flush()
+        try: self.stdout.flush()
+        except: pass
 
 
 def run(script, args=[], critical=True):
@@ -33,6 +54,10 @@ def run(script, args=[], critical=True):
 
 def main():
     date_arg = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%Y%m%d")
+
+    # 로그 파일 설정 (스케줄러에서도 확인 가능)
+    log_path = os.path.join(LOG_DIR, f"run_daily_{date_arg}.log")
+    sys.stdout = TeeLogger(log_path)
 
     print("=" * 60)
     print("[*] AI+패스웨이 일일 자동 실행기 v2.0")
