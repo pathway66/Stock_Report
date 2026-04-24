@@ -21,6 +21,37 @@ import time
 from datetime import datetime
 
 
+# 한국 증시 휴장일 (공휴일 + 임시휴장일)
+# 업데이트 필요 시: https://open.krx.co.kr/
+KRX_HOLIDAYS = {
+    # 2026
+    "2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18",
+    "2026-03-01", "2026-03-02", "2026-05-05", "2026-05-22",
+    "2026-06-03", "2026-06-06", "2026-08-15", "2026-08-17",
+    "2026-09-24", "2026-09-25", "2026-09-28", "2026-09-29",
+    "2026-10-03", "2026-10-05", "2026-10-09", "2026-12-25",
+    "2026-12-31",
+    # 2027 (미리 일부만)
+    "2027-01-01",
+}
+
+
+def is_trading_day(date_str):
+    """YYYYMMDD → 한국 증시 영업일 여부"""
+    try:
+        d = datetime.strptime(date_str, "%Y%m%d")
+    except ValueError:
+        return False
+    # 주말 제외
+    if d.weekday() >= 5:  # 5=토, 6=일
+        return False
+    # 공휴일 제외
+    iso = d.strftime("%Y-%m-%d")
+    if iso in KRX_HOLIDAYS:
+        return False
+    return True
+
+
 # 로그 파일 (스케줄러 실행 시 콘솔 없으므로 파일에 기록)
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -58,6 +89,14 @@ def main():
     # 로그 파일 설정 (스케줄러에서도 확인 가능)
     log_path = os.path.join(LOG_DIR, f"run_daily_{date_arg}.log")
     sys.stdout = TeeLogger(log_path)
+
+    # 증시 영업일 체크 (주말/공휴일은 스킵)
+    if not is_trading_day(date_arg):
+        print("=" * 60)
+        print(f"[SKIP] {date_arg}는 증시 휴장일입니다. 수집 건너뜀.")
+        print(f"   시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("=" * 60)
+        return
 
     print("=" * 60)
     print("[*] AI+패스웨이 일일 자동 실행기 v2.0")
