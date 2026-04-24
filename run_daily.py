@@ -83,6 +83,34 @@ def run(script, args=[], critical=True):
     return ok
 
 
+def revalidate_site():
+    """Next.js 사이트 캐시 새로고침 (/api/revalidate 호출)"""
+    try:
+        import requests
+        from dotenv import load_dotenv
+        load_dotenv()
+        site_url = os.getenv("SITE_URL", "https://ai-pathway-web.vercel.app")
+        secret = os.getenv("REVALIDATE_SECRET", "")
+        if not secret:
+            print("  [W] REVALIDATE_SECRET 미설정 — 스킵")
+            return False
+        resp = requests.post(
+            f"{site_url}/api/revalidate",
+            headers={"Authorization": f"Bearer {secret}"},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            print(f"  [OK] revalidate 완료: {len(data.get('revalidated', []))}개 경로")
+            return True
+        else:
+            print(f"  [W] revalidate 실패: {resp.status_code} {resp.text[:200]}")
+            return False
+    except Exception as e:
+        print(f"  [W] revalidate 오류: {e}")
+        return False
+
+
 def main():
     date_arg = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%Y%m%d")
 
@@ -132,6 +160,17 @@ def main():
     print("-" * 50)
     if not run("calc_force_lines.py", [date_arg], critical=False):
         errors.append("STEP 4: SB/SS 라인 실패 (비핵심)")
+
+    # STEP 5: AI 일일 리포트 생성 (Claude API)
+    print("\n[>] STEP 5: AI 일일 리포트 생성")
+    print("-" * 50)
+    if not run("generate_daily_report.py", [date_arg], critical=False):
+        errors.append("STEP 5: AI 리포트 생성 실패 (비핵심)")
+
+    # STEP 6: Next.js 사이트 캐시 revalidate
+    print("\n[>] STEP 6: 웹사이트 캐시 새로고침")
+    print("-" * 50)
+    revalidate_site()
 
     elapsed = time.time() - start
 
