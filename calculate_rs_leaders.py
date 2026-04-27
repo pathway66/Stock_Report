@@ -171,14 +171,28 @@ def get_universe(db, target_date):
         print(f"    [W] {date_obj} 시총 데이터 없음")
         return {}
 
+    # ETF 필터링: collect_daily_all.py와 동일한 키워드
+    ETF_KEYWORDS = ['KODEX', 'TIGER', 'ACE', 'RISE', 'PLUS', 'SOL', 'HANARO',
+                    'KIWOOM', 'KoAct', 'TIME', 'ETN', 'KOSEF', 'ARIRANG']
+    def is_etf(name):
+        if not name: return False
+        return any(kw in name for kw in ETF_KEYWORDS)
+
     universe = {}
     kospi_count = 0
     kosdaq_count = 0
+    etf_skipped = 0
 
     for r in rows:
         code = r.get('stock_code', '')
+        name = r.get('stock_name', '')
         market = r.get('market', '')
         mktcap = r.get('market_cap', 0) or 0
+
+        # ETF 제외
+        if is_etf(name):
+            etf_skipped += 1
+            continue
 
         if market == 'KOSPI' and mktcap >= MKTCAP_KOSPI:
             universe[code] = {

@@ -21,7 +21,7 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)  # OS 환경변수보다 .env 우선
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip('/')
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
@@ -48,10 +48,11 @@ def sb_upsert(table, rows, on_conflict="date"):
 
 
 def get_top_stocks(date_str, limit=10):
-    """주도주 TOP N (pctl_20d 상위)"""
+    """주도주 TOP N (pctl_20d 상위, NULL 제외)"""
     params = (
         f"date=eq.{date_str}"
         f"&select=stock_code,stock_name,market,sector,pctl_20d,excess_20d,return_20d,combo_grade,is_super_leader"
+        f"&pctl_20d=not.is.null"
         f"&order=pctl_20d.desc"
         f"&limit={limit}"
     )
