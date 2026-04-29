@@ -314,50 +314,48 @@ def save_to_supabase(reports: list, report_date: str = None) -> int:
 
 def main():
     print("=" * 60)
-    print("[*] 한경 컨센서스 리포트 크롤러")
+    print("[*] 한경 컨센서스 리포트 크롤러 v2")
     print(f"   시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"   카테고리: 기업 + 산업 + 시장 (각 SSR 페이지 ~20건/카테고리)")
     print("=" * 60)
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         print("[X] SUPABASE 환경변수 없음")
         return 1
 
-    total_saved = 0
-    for rtype in ['company']:  # 기업 리포트만 (필요시 industry, market 추가)
-        print(f"\n[>] {rtype.upper()} 리포트 페이지 fetch...")
-        try:
-            html = fetch_consensus_page(rtype)
-        except Exception as e:
-            print(f"  [X] fetch 실패: {e}")
-            continue
+    # 메인 페이지 SSR로 일 20건 수집 (한경 첫 화면 topReports + todayReports)
+    # Phase 2에서 Playwright 도입 시 일 100건+ 가능
+    print(f"\n[>] 한경 컨센서스 메인 페이지 fetch...")
+    try:
+        html = fetch_consensus_page('company')
+    except Exception as e:
+        print(f"[X] fetch 실패: {e}")
+        return 1
 
-        print(f"  [>] NUXT 변수 매핑 추출...")
-        var_dict = parse_nuxt_args(html)
-        print(f"      변수 {len(var_dict)}개")
+    var_dict = parse_nuxt_args(html)
+    reports = parse_report_objects(html, var_dict)
+    # 중복 제거 (REPORT_IDX 기준)
+    seen = set()
+    unique_reports = []
+    for r in reports:
+        idx = r.get('report_idx')
+        if idx and idx not in seen:
+            seen.add(idx)
+            unique_reports.append(r)
+    reports = unique_reports
 
-        print(f"  [>] 리포트 객체 파싱...")
-        reports = parse_report_objects(html, var_dict)
-        print(f"      추출 {len(reports)}건")
+    print(f"      추출: {len(reports)}건 (변수 {len(var_dict)}개)")
 
-        if not reports:
-            print(f"  [W] 추출된 리포트 없음")
-            continue
+    if not reports:
+        print(f"[W] 추출된 리포트 없음")
+        return 0
 
-        # 샘플 출력
-        sample = reports[0]
-        print(f"  [i] 샘플:")
-        print(f"      종목: {sample.get('business_name')} ({sample.get('business_code')})")
-        print(f"      증권사: {sample.get('office_name')}")
-        print(f"      제목: {(sample.get('report_title') or '')[:50]}")
-        print(f"      목표가: {sample.get('target_stock_prices')}")
+    sample = reports[0]
+    print(f"  [i] 샘플: {sample.get('business_name')} | {sample.get('office_name')} | {(sample.get('report_title') or '')[:40]}")
 
-        print(f"  [>] Supabase 저장...")
-        saved = save_to_supabase(reports)
-        print(f"      [OK] {saved}건 저장")
-        total_saved += saved
-
+    saved = save_to_supabase(reports)
     print(f"\n{'=' * 60}")
-    print(f"[OK] 총 {total_saved}건 저장 완료")
+    print(f"[OK] {saved}건 저장 (UNIQUE 제약으로 중복 자동 스킵)")
     print(f"{'=' * 60}")
     return 0
 
