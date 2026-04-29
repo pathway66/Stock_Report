@@ -179,8 +179,14 @@ def main():
     if not run("generate_research_ai_summary.py", [date_arg], critical=False):
         errors.append("STEP 7: 리포트 AI 요약 실패 (비핵심)")
 
-    # STEP 8: Next.js 사이트 캐시 revalidate
-    print("\n[>] STEP 8: 웹사이트 캐시 새로고침")
+    # STEP 8: 슈퍼시그널 종목별 일일 AI 리포트 생성
+    print("\n[>] STEP 8: 슈퍼시그널 종목별 일일 AI 리포트")
+    print("-" * 50)
+    if not run("generate_daily_briefs.py", [date_arg], critical=False):
+        errors.append("STEP 8: 슈퍼시그널 일일 리포트 실패 (비핵심)")
+
+    # STEP 9: Next.js 사이트 캐시 revalidate
+    print("\n[>] STEP 9: 웹사이트 캐시 새로고침")
     print("-" * 50)
     revalidate_site()
 

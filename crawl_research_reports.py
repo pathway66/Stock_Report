@@ -203,13 +203,15 @@ def parse_report_objects(html: str, var_dict: dict) -> list:
                 'report_content': extract_field('REPORT_CONTENT'),
                 'report_filepath': extract_field('REPORT_FILEPATH'),
                 'report_date': extract_field('REPORT_DATE'),
-                'grade_value': extract_field('GRADE_VALUE'),  # 투자의견 (Buy/Hold)
+                'grade_value': extract_field('GRADE_VALUE'),
                 'old_grade_value': extract_field('OLD_GRADE_VALUE'),
                 'target_stock_prices': extract_field('TARGET_STOCK_PRICES'),
                 'old_target_stock_prices': extract_field('OLD_TARGET_STOCK_PRICES'),
                 'change_stock_prices_rate': extract_field('CHANGE_STOCK_PRICES_RATE'),
+                'report_type': extract_field('REPORT_TYPE'),  # 한경 카테고리 코드
+                'industry_name': extract_field('INDUSTRY_NAME'),
             }
-            if report['business_name'] and report['report_title']:
+            if report['report_title']:  # 산업/시장 리포트는 business_name 없을 수 있음
                 reports.append(report)
         except Exception as e:
             print(f"  [W] 리포트 파싱 오류: {e}")
@@ -246,12 +248,31 @@ def determine_target_change(target: str, old_target: str, rate: str) -> str:
         return None
 
 
+def determine_category(report_type: str, business_code: str, business_name: str) -> str:
+    """리포트 카테고리 분류"""
+    rt = str(report_type or '').strip()
+    # 한경 REPORT_TYPE 코드: 07020100=기업, 07020200=산업, 07020300=시장, 07020400=경제, 07020500=파생
+    if rt.startswith('0702'):
+        if rt == '07020100':
+            return 'company'
+        elif rt == '07020200':
+            return 'industry'
+        elif rt == '07020300':
+            return 'market'
+        elif rt == '07020400':
+            return 'economy'
+        elif rt == '07020500':
+            return 'derivative'
+    # 코드 없으면 종목코드로 판단 (있으면 기업, 없으면 산업)
+    if business_code and str(business_code).strip():
+        return 'company'
+    return 'industry'
+
+
 def save_to_supabase(reports: list, report_date: str = None) -> int:
     """research_reports 테이블에 저장"""
     if not reports:
         return 0
-
-    # 한경 OFFICE_NAME → 증권사명 변환 (이미 있으면 그대로)
 
     rows = []
     for r in reports:
@@ -281,10 +302,19 @@ def save_to_supabase(reports: list, report_date: str = None) -> int:
         if original_url and not original_url.startswith('http'):
             original_url = f"https://markets.hankyung.com{original_url}"
 
+        category = determine_category(
+            r.get('report_type'),
+            r.get('business_code'),
+            r.get('business_name')
+        )
+
+        # 산업 리포트는 stock_name 자리에 INDUSTRY_NAME 사용
+        display_name = r.get('business_name') or r.get('industry_name') or '-'
+
         rows.append({
             'date': date_iso,
             'stock_code': str(r.get('business_code', '')).zfill(6) if r.get('business_code') else None,
-            'stock_name': r.get('business_name', ''),
+            'stock_name': display_name,
             'brokerage': r.get('office_name', ''),
             'analyst': r.get('report_writer'),
             'opinion': opinion,
@@ -293,6 +323,7 @@ def save_to_supabase(reports: list, report_date: str = None) -> int:
             'title': r.get('report_title', '').strip(),
             'original_url': original_url if original_url else None,
             'source': 'hankyung',
+            'report_category': category,
         })
 
     # Supabase upsert
