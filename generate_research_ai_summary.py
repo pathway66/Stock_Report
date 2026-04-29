@@ -177,14 +177,20 @@ def main():
         print("[X] ANTHROPIC_API_KEY 없음")
         return 1
 
-    # ai_summary가 NULL인 리포트 조회 (target_change 있는 것 우선)
+    # ai_summary가 NULL인 리포트 조회
+    # 환경변수 BACKFILL=1로 설정 시 모든 NULL 리포트 처리 (백필 모드)
+    backfill = os.getenv("BACKFILL", "0") == "1"
+
     if target_date:
         date_iso = f"{target_date[:4]}-{target_date[4:6]}-{target_date[6:8]}"
         params = f"date=eq.{date_iso}&ai_summary=is.null&order=id.desc"
+    elif backfill:
+        params = "ai_summary=is.null&order=date.desc,id.desc"  # 모든 NULL 리포트
     else:
         params = f"date=gte.{today}&ai_summary=is.null&order=id.desc"
 
-    reports = sb_get("research_reports", params + "&limit=50")
+    limit = 600 if backfill else 50
+    reports = sb_get("research_reports", params + f"&limit={limit}")
     print(f"\n[>] 요약 미생성 리포트: {len(reports)}건")
 
     if not reports:

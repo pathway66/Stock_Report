@@ -46,6 +46,31 @@ TYPE_TO_CATEGORY = {
 }
 CATEGORY_TO_TYPE = {v: k for k, v in TYPE_TO_CATEGORY.items()}
 
+# 증권사 화이트리스트 (Shawn 지정 16개)
+BROKERAGE_WHITELIST = {
+    '교보증권', '대신증권', '메리츠증권', '미래에셋증권', '삼성증권',
+    '상상인증권', '신한투자증권', '유안타증권', '유진투자증권', '한국투자증권',
+    'KB증권', 'IM증권', '하나증권', 'LS증권', 'NH투자증권', 'SK증권',
+}
+
+# 증권사명 정규화 (한경 표기 → 표준)
+BROKERAGE_NORMALIZE = {
+    'iM증권': 'IM증권',
+    '미래에셋대우': '미래에셋증권',
+    '한국투자': '한국투자증권',
+    '삼성': '삼성증권',
+    'KB': 'KB증권',
+    'NH투자': 'NH투자증권',
+    'SK': 'SK증권',
+    'LS': 'LS증권',
+}
+
+
+def normalize_brokerage(name: str) -> str:
+    if not name: return name
+    n = str(name).strip()
+    return BROKERAGE_NORMALIZE.get(n, n)
+
 
 def normalize_opinion(grade):
     if not grade: return None
@@ -170,11 +195,16 @@ def normalize(item: dict) -> dict:
     if pdf_url and not pdf_url.startswith('http'):
         pdf_url = f"https://markets.hankyung.com{pdf_url}"
 
+    # 증권사명 정규화 + 화이트리스트 체크
+    brokerage = normalize_brokerage(item.get('OFFICE_NAME', ''))
+    if brokerage not in BROKERAGE_WHITELIST:
+        return None  # 화이트리스트 외 → 제외
+
     return {
         'date': date_iso,
         'stock_code': business_code.zfill(6) if business_code else None,
         'stock_name': business_name,
-        'brokerage': item.get('OFFICE_NAME', ''),
+        'brokerage': brokerage,
         'analyst': item.get('REPORT_WRITER'),
         'opinion': normalize_opinion(item.get('GRADE_VALUE')),
         'target_price': target_p if target_p > 0 else None,
@@ -295,12 +325,15 @@ def main():
 
             rows = []
             errors = 0
-            error_samples = []
+            filtered_out = 0  # 화이트리스트 외 증권사
             empty_name = 0
             empty_title = 0
             for idx, it in enumerate(items):
                 try:
                     norm = normalize(it)
+                    if norm is None:
+                        filtered_out += 1
+                        continue
                     if not norm.get('stock_name') or norm.get('stock_name') == '-':
                         empty_name += 1
                         continue
@@ -310,11 +343,8 @@ def main():
                     rows.append(norm)
                 except Exception as e:
                     errors += 1
-                    if len(error_samples) < 3:
-                        error_samples.append(f"idx {idx}: {type(e).__name__}: {e}")
-            if error_samples:
-                for s in error_samples:
-                    print(f"     ERR: {s}")
+            if filtered_out > 0:
+                print(f"     화이트리스트 제외: {filtered_out}건")
 
             saved = save_to_supabase(rows)
             print(f"  [OK] 추출 {len(items)} / 정규화 {len(rows)} / 저장 {saved}")
