@@ -167,8 +167,20 @@ def main():
     if not run("generate_daily_report.py", [date_arg], critical=False):
         errors.append("STEP 5: AI 리포트 생성 실패 (비핵심)")
 
-    # STEP 6: Next.js 사이트 캐시 revalidate
-    print("\n[>] STEP 6: 웹사이트 캐시 새로고침")
+    # STEP 6: 한경 컨센서스 기업 리포트 크롤링
+    print("\n[>] STEP 6: 한경 컨센서스 리포트 크롤링")
+    print("-" * 50)
+    if not run("crawl_research_reports.py", [], critical=False):
+        errors.append("STEP 6: 리포트 크롤링 실패 (비핵심)")
+
+    # STEP 7: 리포트 AI 요약 생성 (오늘 발행분만)
+    print("\n[>] STEP 7: 리포트 AI 요약 생성")
+    print("-" * 50)
+    if not run("generate_research_ai_summary.py", [date_arg], critical=False):
+        errors.append("STEP 7: 리포트 AI 요약 실패 (비핵심)")
+
+    # STEP 8: Next.js 사이트 캐시 revalidate
+    print("\n[>] STEP 8: 웹사이트 캐시 새로고침")
     print("-" * 50)
     revalidate_site()
 
