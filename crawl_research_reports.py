@@ -249,21 +249,26 @@ def determine_target_change(target: str, old_target: str, rate: str) -> str:
 
 
 def determine_category(report_type: str, business_code: str, business_name: str) -> str:
-    """리포트 카테고리 분류"""
-    rt = str(report_type or '').strip()
-    # 한경 REPORT_TYPE 코드: 07020100=기업, 07020200=산업, 07020300=시장, 07020400=경제, 07020500=파생
-    if rt.startswith('0702'):
-        if rt == '07020100':
-            return 'company'
-        elif rt == '07020200':
-            return 'industry'
-        elif rt == '07020300':
-            return 'market'
-        elif rt == '07020400':
-            return 'economy'
-        elif rt == '07020500':
-            return 'derivative'
-    # 코드 없으면 종목코드로 판단 (있으면 기업, 없으면 산업)
+    """리포트 카테고리 분류
+    한경 REPORT_TYPE 약어:
+      'CO' = Company (기업)
+      'IN' = Industry (산업)
+      'MK' = Market (시장)
+      'EC' = Economy (경제)
+      'DE' = Derivative (파생)
+    """
+    rt = str(report_type or '').strip().upper()
+    if rt == 'CO':
+        return 'company'
+    elif rt == 'IN':
+        return 'industry'
+    elif rt == 'MK':
+        return 'market'
+    elif rt == 'EC':
+        return 'economy'
+    elif rt == 'DE':
+        return 'derivative'
+    # fallback: 종목코드 있으면 기업, 없으면 산업
     if business_code and str(business_code).strip():
         return 'company'
     return 'industry'
