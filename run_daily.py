@@ -167,10 +167,10 @@ def main():
     if not run("generate_daily_report.py", [date_arg], critical=False):
         errors.append("STEP 5: AI 리포트 생성 실패 (비핵심)")
 
-    # STEP 6: 한경 컨센서스 기업 리포트 크롤링
-    print("\n[>] STEP 6: 한경 컨센서스 리포트 크롤링")
+    # STEP 6: 한경 컨센서스 리포트 크롤링 (Playwright v2: 일 100~200건)
+    print("\n[>] STEP 6: 한경 컨센서스 리포트 크롤링 (Playwright)")
     print("-" * 50)
-    if not run("crawl_research_reports.py", [], critical=False):
+    if not run("crawl_research_v2.py", [], critical=False):
         errors.append("STEP 6: 리포트 크롤링 실패 (비핵심)")
 
     # STEP 7: 리포트 AI 요약 생성 (오늘 발행분만)
