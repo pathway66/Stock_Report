@@ -4,10 +4,14 @@
 매일 장 마감 후 이것 하나만 실행하면 모든 데이터 수집+분석 완료.
 
 파이프라인:
-  1) collect_daily_all.py   -> 전종목 수급+OHLCV+시총+52주고저 -> daily_supply_v2
-  2) collect_index_data.py  -> 지수 OHLCV+리턴 -> index_supply + daily_index_returns
-  3) calculate_rs_leaders.py -> RS 8기간 랭킹 -> rs_leaders
-  4) calc_force_lines.py    -> 주도세력 SB/SS 라인 -> force_buy_sell_lines
+  1) collect_daily_all.py        -> 전종목 수급+OHLCV+시총+52주고저 -> daily_supply_v2
+  2) collect_index_data.py       -> 지수 OHLCV+리턴 -> index_supply + daily_index_returns
+  3) calculate_rs_leaders.py     -> RS 8기간 랭킹 -> rs_leaders
+  4) generate_daily_report.py    -> AI 일일 시장 리포트
+  5) crawl_research_v2.py        -> 한경 컨센서스 리포트 크롤링 -> research_reports
+  6) generate_research_ai_summary.py -> 리포트 AI 요약
+  7) generate_daily_briefs.py    -> 슈퍼시그널 종목별 일일 AI 브리핑
+  8) /api/revalidate             -> 사이트 캐시 새로고침
 
 사용법:
   python run_daily.py          -> 오늘 날짜
@@ -208,38 +212,32 @@ def main():
     if not run("calculate_rs_leaders.py", [date_arg]):
         errors.append("STEP 3: RS Leaders 실패")
 
-    # STEP 4: 주도세력 SB/SS 라인 계산
-    print("\n[>] STEP 4: 주도세력 SB/SS 라인 계산")
-    print("-" * 50)
-    if not run("calc_force_lines.py", [date_arg], critical=False):
-        errors.append("STEP 4: SB/SS 라인 실패 (비핵심)")
-
-    # STEP 5: AI 일일 리포트 생성 (Claude API)
-    print("\n[>] STEP 5: AI 일일 리포트 생성")
+    # STEP 4: AI 일일 리포트 생성 (Claude API)
+    print("\n[>] STEP 4: AI 일일 리포트 생성")
     print("-" * 50)
     if not run("generate_daily_report.py", [date_arg], critical=False):
-        errors.append("STEP 5: AI 리포트 생성 실패 (비핵심)")
+        errors.append("STEP 4: AI 리포트 생성 실패 (비핵심)")
 
-    # STEP 6: 한경 컨센서스 리포트 크롤링 (Playwright v2: 일 100~200건)
-    print("\n[>] STEP 6: 한경 컨센서스 리포트 크롤링 (Playwright)")
+    # STEP 5: 한경 컨센서스 리포트 크롤링 (Playwright v2: 일 100~200건)
+    print("\n[>] STEP 5: 한경 컨센서스 리포트 크롤링 (Playwright)")
     print("-" * 50)
     if not run("crawl_research_v2.py", [], critical=False):
-        errors.append("STEP 6: 리포트 크롤링 실패 (비핵심)")
+        errors.append("STEP 5: 리포트 크롤링 실패 (비핵심)")
 
-    # STEP 7: 리포트 AI 요약 생성 (오늘 발행분만)
-    print("\n[>] STEP 7: 리포트 AI 요약 생성")
+    # STEP 6: 리포트 AI 요약 생성 (오늘 발행분만)
+    print("\n[>] STEP 6: 리포트 AI 요약 생성")
     print("-" * 50)
     if not run("generate_research_ai_summary.py", [date_arg], critical=False):
-        errors.append("STEP 7: 리포트 AI 요약 실패 (비핵심)")
+        errors.append("STEP 6: 리포트 AI 요약 실패 (비핵심)")
 
-    # STEP 8: 슈퍼시그널 종목별 일일 AI 리포트 생성
-    print("\n[>] STEP 8: 슈퍼시그널 종목별 일일 AI 리포트")
+    # STEP 7: 슈퍼시그널 종목별 일일 AI 리포트 생성
+    print("\n[>] STEP 7: 슈퍼시그널 종목별 일일 AI 리포트")
     print("-" * 50)
     if not run("generate_daily_briefs.py", [date_arg], critical=False):
-        errors.append("STEP 8: 슈퍼시그널 일일 리포트 실패 (비핵심)")
+        errors.append("STEP 7: 슈퍼시그널 일일 리포트 실패 (비핵심)")
 
-    # STEP 9: Next.js 사이트 캐시 revalidate
-    print("\n[>] STEP 9: 웹사이트 캐시 새로고침")
+    # STEP 8: Next.js 사이트 캐시 revalidate
+    print("\n[>] STEP 8: 웹사이트 캐시 새로고침")
     print("-" * 50)
     revalidate_site()
 
