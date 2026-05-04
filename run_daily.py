@@ -20,6 +20,33 @@ import os
 import time
 from datetime import datetime
 
+# 텔레그램 알림 (선택적 — 환경변수 미설정 시 조용히 스킵)
+try:
+    from telegram_bot import send_telegram as _send_telegram
+except Exception:
+    _send_telegram = None
+
+
+def notify(msg: str):
+    """텔레그램 알림. 실패해도 메인 파이프라인 영향 없음."""
+    if _send_telegram is None:
+        return
+    try:
+        _send_telegram(msg)
+    except Exception as e:
+        print(f"  [W] 텔레그램 알림 실패: {e}")
+
+
+def fmt_elapsed(seconds: float) -> str:
+    s = int(seconds)
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    if h > 0:
+        return f"{h}시간 {m}분 {sec}초"
+    if m > 0:
+        return f"{m}분 {sec}초"
+    return f"{sec}초"
+
 
 # 한국 증시 휴장일 (공휴일 + 임시휴장일)
 # 업데이트 필요 시: https://open.krx.co.kr/
@@ -75,12 +102,17 @@ class TeeLogger:
 def run(script, args=[], critical=True):
     """스크립트 실행. 자식 stdout/stderr를 라인 단위로 부모 로그(TeeLogger)에 흘려
     실시간 진행률 + 실패 시 stderr까지 모두 logs/run_daily_*.log에 기록.
+
+    자식을 -u(unbuffered) 플래그 + PYTHONUNBUFFERED=1 로 띄워야 자식 print()가
+    pipe를 통해 즉시 흘러나옴 (없으면 자식 stdout이 fully-buffered가 됨).
     critical=True면 실패 시 중단."""
-    cmd = [sys.executable, script] + args
+    cmd = [sys.executable, "-u", script] + args
     print(f"  >> {script} {' '.join(args)}", flush=True)
+    env = os.environ.copy()
+    env['PYTHONUNBUFFERED'] = '1'
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, encoding='utf-8', errors='replace', bufsize=1,
+        text=True, encoding='utf-8', errors='replace', bufsize=1, env=env,
     )
     if proc.stdout is not None:
         for line in proc.stdout:
@@ -127,12 +159,15 @@ def main():
     log_path = os.path.join(LOG_DIR, f"run_daily_{date_arg}.log")
     sys.stdout = TeeLogger(log_path)
 
+    iso_date = f"{date_arg[:4]}-{date_arg[4:6]}-{date_arg[6:8]}"
+
     # 증시 영업일 체크 (주말/공휴일은 스킵)
     if not is_trading_day(date_arg):
         print("=" * 60)
         print(f"[SKIP] {date_arg}는 증시 휴장일입니다. 수집 건너뜀.")
         print(f"   시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("=" * 60)
+        notify(f"💤 {iso_date} 휴장일 — 수집 건너뜀")
         return
 
     print("=" * 60)
@@ -144,12 +179,21 @@ def main():
     start = time.time()
     errors = []
 
+    notify(f"🚀 AI패스웨이 일일 수집 시작\n📅 {iso_date} {datetime.now().strftime('%H:%M:%S')}")
+
     # STEP 1: 전종목 수급+OHLCV+시총+52주고저 통합 수집
     print("\n[>] STEP 1: 전종목 통합 수집 (수급+OHLCV+시총+52주)")
     print("-" * 50)
     if not run("collect_daily_all.py", [date_arg]):
         errors.append("STEP 1: 전종목 수집 실패")
         print("[X] 핵심 데이터 수집 실패. 중단합니다.")
+        elapsed_fail = time.time() - start
+        notify(
+            f"❌ AI패스웨이 일일 수집 실패\n"
+            f"📅 {iso_date} {datetime.now().strftime('%H:%M:%S')}\n"
+            f"⛔ STEP 1: 전종목 수집 실패 — 파이프라인 중단됨\n"
+            f"⏱ 소요 {fmt_elapsed(elapsed_fail)} (실패 시점)"
+        )
         return
 
     # STEP 2: 지수 데이터 수집 (KOSPI/KOSDAQ)
@@ -211,6 +255,24 @@ def main():
     print(f"   소요시간: {elapsed:.0f}초 ({elapsed/60:.1f}분)")
     print(f"   DB: daily_supply_v2, daily_index, rs_leaders")
     print("=" * 60)
+
+    # 텔레그램 종료 알림
+    finish_ts = datetime.now().strftime('%H:%M:%S')
+    if errors:
+        warn_lines = "\n".join(f"❗ {e}" for e in errors)
+        notify(
+            f"⚠️ AI패스웨이 일일 수집 완료 (경고 {len(errors)}건)\n"
+            f"📅 {iso_date} {finish_ts}\n"
+            f"⏱ 소요 {fmt_elapsed(elapsed)}\n"
+            f"{warn_lines}"
+        )
+    else:
+        notify(
+            f"✅ AI패스웨이 일일 수집 완료\n"
+            f"📅 {iso_date} {finish_ts}\n"
+            f"⏱ 소요 {fmt_elapsed(elapsed)}\n"
+            f"📊 daily_supply_v2 / rs_leaders / research_reports 갱신"
+        )
 
 
 if __name__ == "__main__":
