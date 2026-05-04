@@ -26,7 +26,7 @@ from datetime import datetime
 KRX_HOLIDAYS = {
     # 2026
     "2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18",
-    "2026-03-01", "2026-03-02", "2026-05-05", "2026-05-22",
+    "2026-03-01", "2026-03-02", "2026-05-01", "2026-05-05", "2026-05-22",
     "2026-06-03", "2026-06-06", "2026-08-15", "2026-08-17",
     "2026-09-24", "2026-09-25", "2026-09-28", "2026-09-29",
     "2026-10-03", "2026-10-05", "2026-10-09", "2026-12-25",
@@ -73,13 +73,22 @@ class TeeLogger:
 
 
 def run(script, args=[], critical=True):
-    """스크립트 실행. critical=True면 실패 시 중단."""
+    """스크립트 실행. 자식 stdout/stderr를 라인 단위로 부모 로그(TeeLogger)에 흘려
+    실시간 진행률 + 실패 시 stderr까지 모두 logs/run_daily_*.log에 기록.
+    critical=True면 실패 시 중단."""
     cmd = [sys.executable, script] + args
-    print(f"  >> {script} {' '.join(args)}")
-    result = subprocess.run(cmd, capture_output=False)
-    ok = result.returncode == 0
+    print(f"  >> {script} {' '.join(args)}", flush=True)
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, encoding='utf-8', errors='replace', bufsize=1,
+    )
+    if proc.stdout is not None:
+        for line in proc.stdout:
+            print(line, end='', flush=True)
+    proc.wait()
+    ok = proc.returncode == 0
     if not ok and critical:
-        print(f"  [X] {script} 실패! (exit code: {result.returncode})")
+        print(f"  [X] {script} 실패! (exit code: {proc.returncode})")
     return ok
 
 
