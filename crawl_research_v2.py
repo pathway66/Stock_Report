@@ -22,9 +22,12 @@ import time
 import requests
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from playwright.sync_api import sync_playwright
 
+# .env를 playwright import 전에 로드해야 PLAYWRIGHT_BROWSERS_PATH가
+# import 시점부터 Playwright에 적용됨 (스케줄러 SYSTEM 계정에서 특히 중요)
 load_dotenv(override=True)
+
+from playwright.sync_api import sync_playwright
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip('/')
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
