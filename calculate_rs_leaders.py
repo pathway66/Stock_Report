@@ -145,18 +145,20 @@ def get_universe(db, target_date):
     params = (
         f"date=eq.{date_obj}"
         f"&select=stock_code,stock_name,market,market_cap"
-        f"&order=market_cap.desc"
+        f"&order=stock_code.asc"
     )
     rows = db.query("daily_market", params)
 
     # 2차: fallback → daily_supply_v2에서 시총 추출 (중복 제거)
+    # ORDER BY stock_code: 페이지네이션 일관성 확보 (market_cap.desc만으론
+    # 같은 시총 종목 간 경계에서 중복/누락 발생 가능)
     if not rows:
         print(f"    [i] daily_market 없음 -> daily_supply_v2 fallback")
         params2 = (
             f"date=eq.{date_obj}"
             f"&select=stock_code,stock_name,market,market_cap"
             f"&market_cap=gt.0"
-            f"&order=market_cap.desc"
+            f"&order=stock_code.asc"
         )
         raw = db.query("daily_supply_v2", params2)
         seen = set()
@@ -265,9 +267,12 @@ def get_stock_returns(db, target_date, universe):
     close_by_date = {}  # {date: {stock_code: close_price}}
     for d in needed_dates:
         print(f"    [{d}] 종가 조회...", end=" ", flush=True)
+        # ORDER BY stock_code: 4263+ 종목 페이지네이션(1000행씩) 일관성 확보
+        # (없으면 페이지 경계에서 SK스퀘어/LG엔솔 같은 대형주가 누락됨)
         params = (
             f"date=eq.{d}"
             f"&select=stock_code,close"
+            f"&order=stock_code.asc"
         )
         rows = db.query("daily_ohlcv", params)
         prices = {}
@@ -345,7 +350,8 @@ def get_pullback_indicators(db, target_date, universe):
 
     all_ohlcv = []
     for d in past_20_dates:
-        params = f"date=eq.{d}&select=stock_code,date,high,close,volume"
+        # ORDER BY stock_code: 페이지네이션 일관성 (위와 동일 사유)
+        params = f"date=eq.{d}&select=stock_code,date,high,close,volume&order=stock_code.asc"
         rows = db.query("daily_ohlcv", params)
         all_ohlcv.extend(rows)
 
