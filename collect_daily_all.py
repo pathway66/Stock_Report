@@ -219,12 +219,27 @@ def collect_ohlcv(token, stock, target_dt, dt_fmt):
         prev_close = close_p - pred_pre
         change_pct = round(pred_pre / prev_close * 100, 2) if prev_close > 0 else 0.0
 
+        volume = abs(to_int(item.get('trde_qty', 0)))
+        close_abs = abs(close_p)
+        # trade_value: 키움 trde_prica(억원 단위)가 응답에 있으면 사용, 없으면 close*volume 근사
+        # CSV(kiwoom_collector_v3) 와 동일 로직: trde_prica * 100M = 원
+        trade_value = None
+        tprica_raw = item.get('trde_prica') or item.get('trde_pre')
+        if tprica_raw:
+            try:
+                trade_value = int(float(str(tprica_raw).replace(',', '').lstrip('+').lstrip('-')) * 100_000_000)
+            except Exception:
+                trade_value = None
+        if trade_value is None or trade_value <= 0:
+            trade_value = close_abs * volume  # 근사 (종가 × 거래량)
+
         result = {
             "open": abs(to_int(item.get('open_pric', 0))),
             "high": abs(to_int(item.get('high_pric', 0))),
             "low": abs(to_int(item.get('low_pric', 0))),
-            "close": abs(close_p),
-            "volume": abs(to_int(item.get('trde_qty', 0))),
+            "close": close_abs,
+            "volume": volume,
+            "trade_value": trade_value,
             "change_pct": change_pct,
         }
     except:
