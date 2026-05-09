@@ -643,13 +643,21 @@ def apply_combo_and_super(db, results, target_date):
 # STEP 6: 섹터 매핑
 # ============================================================
 def apply_sector(db, results):
-    """sector_map 테이블에서 섹터 정보 매핑"""
+    """stock_sectors 테이블에서 섹터 정보 매핑.
+    sector_map 뷰는 daily_supply_v2(거대 테이블)와 JOIN되어 timeout 발생 →
+    stock_sectors 직접 조회로 변경. 종목당 여러 섹터일 경우 첫 번째 사용.
+    """
     print(f"  [>] 섹터 매핑...", end=" ", flush=True)
 
-    params = "select=stock_code,sector"
-    sector_rows = db.query("sector_map", params)
+    params = "select=stock_code,sector&order=stock_code.asc"
+    sector_rows = db.query("stock_sectors", params)
 
-    sector_map = {r['stock_code']: r.get('sector', '') for r in sector_rows}
+    # 종목당 첫 번째 섹터만 (이미 stock_code로 정렬되어 들어옴)
+    sector_map = {}
+    for r in sector_rows:
+        code = r['stock_code']
+        if code not in sector_map:
+            sector_map[code] = r.get('sector', '')
 
     matched = 0
     for code, data in results.items():
@@ -660,7 +668,7 @@ def apply_sector(db, results):
         else:
             data['sector'] = None
 
-    print(f"[OK] {matched}종목 매핑")
+    print(f"[OK] {matched}종목 매핑 (전체 {len(sector_map):,} 매핑 가능)")
     return results
 
 

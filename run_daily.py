@@ -237,11 +237,12 @@ def main():
     if not run("generate_research_ai_summary.py", [date_arg], critical=False):
         errors.append("STEP 7: 리포트 AI 요약 실패 (비핵심)")
 
-    # STEP 8: 슈퍼시그널 종목별 일일 AI 리포트 생성
-    print("\n[>] STEP 8: 슈퍼시그널 종목별 일일 AI 리포트")
+    # STEP 8: 슈퍼시그널 종목별 일일 AI 리포트 — [비활성화]
+    # 사이트 노출 메뉴(슈퍼시그널/AI일일리포트) 모두 정리되어 사용처 없음.
+    # 데이터(daily_stock_briefs)는 보존, 필요 시 재활성화 가능.
+    # 매일 Claude API 비용 + 5~10분 작업시간 절감.
+    print("\n[>] STEP 8: 슈퍼시그널 일일 리포트 [비활성화 — 메뉴 정리됨]")
     print("-" * 50)
-    if not run("generate_daily_briefs.py", [date_arg], critical=False):
-        errors.append("STEP 8: 슈퍼시그널 일일 리포트 실패 (비핵심)")
 
     # STEP 9: Next.js 사이트 캐시 revalidate
     print("\n[>] STEP 9: 웹사이트 캐시 새로고침")
