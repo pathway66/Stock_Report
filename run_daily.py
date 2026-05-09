@@ -8,11 +8,12 @@
   2) collect_index_data.py       -> 지수 OHLCV+리턴 -> index_supply + daily_index_returns
   3) calculate_rs_leaders.py     -> RS 8기간 랭킹 -> rs_leaders
   4) backfill_guru_signals.py    -> 9개 그루 패턴 시그널 -> guru_signals
-  5) generate_daily_report.py    -> AI 일일 시장 리포트
-  6) crawl_research_v2.py        -> 한경 컨센서스 리포트 크롤링 -> research_reports
-  7) generate_research_ai_summary.py -> 리포트 AI 요약
-  8) generate_daily_briefs.py    -> 슈퍼시그널 종목별 일일 AI 브리핑
-  9) /api/revalidate             -> 사이트 캐시 새로고침
+  5) backfill_volume_indicators.py -> CMF/AD/MFI 3대 지표 -> daily_supply_v2
+  6) generate_daily_report.py    -> AI 일일 시장 리포트
+  7) crawl_research_v2.py        -> 한경 컨센서스 리포트 크롤링 -> research_reports
+  8) generate_research_ai_summary.py -> 리포트 AI 요약
+  9) (비활성) generate_daily_briefs.py
+ 10) /api/revalidate             -> 사이트 캐시 새로고침
 
 사용법:
   python run_daily.py          -> 오늘 날짜
@@ -219,33 +220,36 @@ def main():
     if not run("backfill_guru_signals.py", ["--date", date_arg], critical=False):
         errors.append("STEP 4: 그루 시그널 갱신 실패 (비핵심)")
 
-    # STEP 5: AI 일일 리포트 생성 (Claude API)
-    print("\n[>] STEP 5: AI 일일 리포트 생성")
+    # STEP 5: 거래량/거래대금 3대 지표 갱신 (CMF / A-D Line / MFI)
+    print("\n[>] STEP 5: 거래량 지표 갱신 (CMF / A-D / MFI)")
+    print("-" * 50)
+    if not run("backfill_volume_indicators.py", ["--date", date_arg], critical=False):
+        errors.append("STEP 5: 거래량 지표 갱신 실패 (비핵심)")
+
+    # STEP 6: AI 일일 리포트 생성 (Claude API)
+    print("\n[>] STEP 6: AI 일일 리포트 생성")
     print("-" * 50)
     if not run("generate_daily_report.py", [date_arg], critical=False):
-        errors.append("STEP 5: AI 리포트 생성 실패 (비핵심)")
+        errors.append("STEP 6: AI 리포트 생성 실패 (비핵심)")
 
-    # STEP 6: 한경 컨센서스 리포트 크롤링 (Playwright v2: 일 100~200건)
-    print("\n[>] STEP 6: 한경 컨센서스 리포트 크롤링 (Playwright)")
+    # STEP 7: 한경 컨센서스 리포트 크롤링 (Playwright v2: 일 100~200건)
+    print("\n[>] STEP 7: 한경 컨센서스 리포트 크롤링 (Playwright)")
     print("-" * 50)
     if not run("crawl_research_v2.py", [], critical=False):
-        errors.append("STEP 6: 리포트 크롤링 실패 (비핵심)")
+        errors.append("STEP 7: 리포트 크롤링 실패 (비핵심)")
 
-    # STEP 7: 리포트 AI 요약 생성 (오늘 발행분만)
-    print("\n[>] STEP 7: 리포트 AI 요약 생성")
+    # STEP 8: 리포트 AI 요약 생성 (오늘 발행분만)
+    print("\n[>] STEP 8: 리포트 AI 요약 생성")
     print("-" * 50)
     if not run("generate_research_ai_summary.py", [date_arg], critical=False):
-        errors.append("STEP 7: 리포트 AI 요약 실패 (비핵심)")
+        errors.append("STEP 8: 리포트 AI 요약 실패 (비핵심)")
 
-    # STEP 8: 슈퍼시그널 종목별 일일 AI 리포트 — [비활성화]
-    # 사이트 노출 메뉴(슈퍼시그널/AI일일리포트) 모두 정리되어 사용처 없음.
-    # 데이터(daily_stock_briefs)는 보존, 필요 시 재활성화 가능.
-    # 매일 Claude API 비용 + 5~10분 작업시간 절감.
-    print("\n[>] STEP 8: 슈퍼시그널 일일 리포트 [비활성화 — 메뉴 정리됨]")
+    # STEP 9: 슈퍼시그널 종목별 일일 AI 리포트 — [비활성화]
+    print("\n[>] STEP 9: 슈퍼시그널 일일 리포트 [비활성화 — 메뉴 정리됨]")
     print("-" * 50)
 
-    # STEP 9: Next.js 사이트 캐시 revalidate
-    print("\n[>] STEP 9: 웹사이트 캐시 새로고침")
+    # STEP 10: Next.js 사이트 캐시 revalidate
+    print("\n[>] STEP 10: 웹사이트 캐시 새로고침")
     print("-" * 50)
     revalidate_site()
 
