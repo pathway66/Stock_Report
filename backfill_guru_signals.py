@@ -229,6 +229,16 @@ def detect_signals(stock_data, smart_money, idx_ret, target_dates=None):
                 continue
 
             ret_1d = (today['close'] / prev['close'] - 1) * 100
+
+            # ── 이상치 가드 (분할/병합/액면변경/감자 등 가격 조정 사건 제외) ──
+            # 한국 거래소 일일 변동 상한 ±30%, 초과 시 비정상 가격 점프
+            if ret_1d > 30 or ret_1d < -30:
+                continue
+            # 최근 5거래일 변동폭이 종가의 0.1% 미만 = 거래정지/희석 직후
+            recent_range = sum(x['high'] - x['low'] for x in lst[i - 5:i])
+            if recent_range < today['close'] * 0.005:  # 5일 누적 변동 < 0.5%
+                continue
+
             vol_20 = sum(x['volume'] for x in lst[i - 20:i]) / 20
             vol_50 = sum(x['volume'] for x in lst[i - 50:i]) / 50
             vr20 = today['volume'] / vol_20 if vol_20 > 0 else 0
