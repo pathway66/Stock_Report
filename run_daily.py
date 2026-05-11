@@ -253,6 +253,14 @@ def main():
     print("-" * 50)
     revalidate_site()
 
+    # STEP 11: 텔레그램 사용자 알림 디스패치 (구독자에게 발송)
+    print("\n[>] STEP 11: 텔레그램 사용자 알림 디스패치")
+    print("-" * 50)
+    if not run("telegram_dispatch.py",
+               args=["--type", "all", "--date", iso_date.replace("-", "")],
+               critical=False):
+        errors.append("STEP 11: 텔레그램 알림 디스패치 실패 (비핵심)")
+
     elapsed = time.time() - start
 
     print("\n" + "=" * 60)
