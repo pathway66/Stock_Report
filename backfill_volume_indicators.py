@@ -180,16 +180,21 @@ def main():
     ap.add_argument('--backfill-to', default=None)
     args = ap.parse_args()
 
+    # ⚠ A/D Line은 누적값이라 lookback 시작점이 달라지면 값이 점프함.
+    # 단일일 모드도 backfill_from (고정)부터 lookback하여 일관된 누적값 유지.
+    AD_CUMULATIVE_START = args.backfill_from  # 기본 '2025-05-08'
+
     if args.date:
         target = datetime.strptime(args.date, "%Y%m%d").strftime("%Y-%m-%d")
         target_dates = {target}
-        load_start = (datetime.strptime(target, "%Y-%m-%d") - timedelta(days=400)).strftime("%Y-%m-%d")
+        # A/D 누적 일관성: 항상 같은 시작점부터 lookback
+        load_start = AD_CUMULATIVE_START
         load_end = target
-        print(f"[*] 단일일 모드: {target}")
+        print(f"[*] 단일일 모드: {target} (누적 시작점 {load_start} 고정)")
     else:
         backfill_from = args.backfill_from
         load_end = args.backfill_to or datetime.now().strftime("%Y-%m-%d")
-        load_start = (datetime.strptime(backfill_from, "%Y-%m-%d") - timedelta(days=400)).strftime("%Y-%m-%d")
+        load_start = backfill_from  # 누적 일관성 위해 정확한 시작점
         target_dates = None  # 모든 날짜 처리하되 백필 시작일 이후만 저장
         print(f"[*] 백필 모드: {backfill_from}~{load_end}")
 
